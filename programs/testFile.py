@@ -7,7 +7,7 @@ def helloWorld(): # Hi there
 ahoy: bool = True
 
 a == b
-c = 2
+c = 'Wazzup # man'
 c += 2
 c -=5
 b=
@@ -24,6 +24,7 @@ helloWorld()
 print("goodbye")
 
 # aHOY!
+
 
 
 

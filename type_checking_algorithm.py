@@ -27,7 +27,6 @@ class Scope:
 
     def addSubscope(self, scopeBeginning):
         self.subscopes.append(Scope(self, scopeBeginning))
-        # TODO create dynamically defined subscopes or a parser tree
         # add  parent, attribute
 
     def setScopeBeginning(self, index: int) -> None:
@@ -184,12 +183,21 @@ class TCA:
     def removeComments(self, lines: List[str]) -> List:
         # Iterates over every line
         for i, line in enumerate(lines):
+            apostrophes: int = 0
+            speechmarks: int = 0
             # Iterates over every element of each line, with enumerate,
             # so I have the index as well as the value thanks to
             # https://stackoverflow.com/questions/522563/accessing-the-index-in-for-loops
             for j, character in enumerate(lines[i]):
+                if character == '\'':
+                    apostrophes += 1
+                elif character == '\"':
+                    speechmarks += 1
                 if character == '#':
-                    lines[i] = lines[i][:j]
+                    if apostrophes % 2 == 0 and speechmarks % 2 == 0:
+                        # TODO, make sure that e.g. s = 'my string with #' wont get removed
+                        lines[i] = lines[i][:j]
+                        break
 
         return lines
 
