@@ -1,6 +1,7 @@
 from typing import List, Dict
 from DataStructures import Stack
 
+
 # TODO new idea for keeping track of the scopes - for each one remember at which line the scope began and ended,
 # in each scope store the their children in a list
 # Idea #2:
@@ -41,7 +42,7 @@ class Scope:
     def getScopeBeginning(self) -> int:
         return self.scopeBeginning
 
-    def getSubscopesBeginning(self, result = ''):
+    def getSubscopesBeginning(self, result=''):
         result += 'b' + str(self.scopeBeginning)
         result += ' e'
         result += str(self.scopeEnding) + ' '
@@ -60,13 +61,13 @@ class TCA:
         # List of all scopes, each scope points to their parent
         # self._scopes: List[Scope] = []
         self._scopes: Scope = Scope()
-        self._tokens: List[str] = []     # Keeps track of all INDENT and DE
+        self._tokens: List[str] = []  # Keeps track of all INDENT and DE
         self._operators: tuple = ('+', '-', '*', '**', '/', '//', '%')
         self._comparisonOperators: tuple = ('==', '!=', '>', '<', '<=', '>=')
         self._errors: List[str] = []
 
     def cleanAttributes(self) -> None:  # TODO keeping some of these values might be useful
-                                        # (quicker runtime for multiple checks)
+        # (quicker runtime for multiple checks)
         self._scopes = Scope()
         self._tokens = []
         self._errors = []
@@ -76,11 +77,11 @@ class TCA:
         # TODO sort all scopes according to their indentation, FIXXXX
         #  use: https://docs.python.org/3/reference/lexical_analysis.html#indentation
         # create a stack to keep track of INDENT/DEDENT Tokens
-        indents: Stack = Stack(len(lines)+1)    # The '+1' is required because there is a 0 at the start
+        indents: Stack = Stack(len(lines) + 1)  # The '+1' is required because there is a 0 at the start
         self._tokens = ['' for _ in range(len(lines))]
-        indents.push(0)     # Initial 0, to indicate that there is no indentation at the start of the file
-        for i in range(len(lines)):     # iterate over every line:
-            for j, char in enumerate(lines[i]):     # and over every character
+        indents.push(0)  # Initial 0, to indicate that there is no indentation at the start of the file
+        for i in range(len(lines)):  # iterate over every line:
+            for j, char in enumerate(lines[i]):  # and over every character
                 # if it's a space and the indentation is greater than previously,
                 # generate indent token and push the new indentation on top of the stack,
                 # (also create a new scope), if its smaller than current indent, keep popping,
@@ -105,7 +106,6 @@ class TCA:
         print(self._tokens)
         print(self._scopes)
 
-
     def identifyVariable(self, line, signLoc: int) -> tuple:
         # This function is called whenever a variable definition is found, it returns
         # the name and the type of this variable
@@ -114,10 +114,10 @@ class TCA:
         whitespaceOccurred: bool = False
         # The above variable is necessary, because if there are any non-whitespace characters
         # before the var definition, they might get included in the varType
-        for i in range(signLoc-1, -1, -1):
+        for i in range(signLoc - 1, -1, -1):
             # If it's a colon, that means the type definition happened before
             if line[i] == ':':
-                j = i-1     # omit colon
+                j = i - 1  # omit colon
                 while j >= 0:
                     if line[j] == ' ':  # if end of the definition, break
                         break
@@ -126,19 +126,19 @@ class TCA:
                 break
 
             if line[i] != ' ':  # if the above hasn't occurred, than all non-whitespace
-                                # characters are part of the var type
+                # characters are part of the var type
                 if not whitespaceOccurred:  # If a whitespace appeared before, and it's still varType,
-                                            # break the loop
+                    # break the loop
                     varType += line[i]
                 else:
                     break
-            elif varType != '':     # If it's not the whitespace between '=' sign and the varType,
-                                    # this is the end of the variable type
-                    whitespaceOccurred = True
+            elif varType != '':  # If it's not the whitespace between '=' sign and the varType,
+                # this is the end of the variable type
+                whitespaceOccurred = True
 
         varType = varType[::-1]
         varName = varName[::-1]
-        if varName == '':   # If the user hasn't assigned a type, then the var name got stored in varType
+        if varName == '':  # If the user hasn't assigned a type, then the var name got stored in varType
             varName = varType
             varType = ''
         return varName, varType
@@ -151,17 +151,17 @@ class TCA:
                 if not skipNext:
                     if line[j] == '=':
                         if j > 0:
-                            if line[j-1] in self._operators:
+                            if line[j - 1] in self._operators:
                                 # if ^ true, a variable is used here, check its value
                                 # TODO run value checking here
                                 break
 
-                            elif (line[j-1] + line[j]) in self._comparisonOperators:
+                            elif (line[j - 1] + line[j]) in self._comparisonOperators:
                                 # ^ if true a variable is used here for comparison
                                 break
 
-                        if j < len(line)-1:
-                            if line[j+1] == '=':
+                        if j < len(line) - 1:
+                            if line[j + 1] == '=':
                                 # two equal signs - comparison operator
                                 skipNext = True
 
@@ -180,6 +180,17 @@ class TCA:
     def findVariablesUsage(self):
         pass
 
+    def checkForEscapeChar(self, line, index):
+        backslashes = 0
+        for i in range(index, -1, -1):
+            if line[i] == ' ':
+                break
+            if line[i] == '\\':
+                backslashes += 1
+        if backslashes == 0:
+            return False
+        return backslashes % 2 != 0
+
     def removeComments(self, lines: List[str]) -> List:
         # Iterates over every line
         for i, line in enumerate(lines):
@@ -189,13 +200,21 @@ class TCA:
             # so I have the index as well as the value thanks to
             # https://stackoverflow.com/questions/522563/accessing-the-index-in-for-loops
             for j, character in enumerate(lines[i]):
-                if character == '\'':
-                    apostrophes += 1
+                if character == '\'':   # The part below ensures that no string literals containing
+                    if j > 0:           # '#' signs will be cut off
+                        if not self.checkForEscapeChar(lines[i], j-1):
+                            apostrophes += 1
+                    else:
+                        apostrophes += 1
+
                 elif character == '\"':
-                    speechmarks += 1
-                if character == '#':
+                    if j > 0:
+                        if not self.checkForEscapeChar(lines[i], j-1):
+                            speechmarks += 1
+                    else:
+                        speechmarks += 1
+                elif character == '#':
                     if apostrophes % 2 == 0 and speechmarks % 2 == 0:
-                        # TODO, make sure that e.g. s = 'my string with #' wont get removed
                         lines[i] = lines[i][:j]
                         break
 
@@ -220,13 +239,13 @@ class TCA:
 
     # This function will check if all variables were defined correctly (were given a type)
     def checkVariableDefinition(self, variable: tuple, lineNo: int) -> None:
-        #TODO check if this variable already exists in this scope
+        # TODO check if this variable already exists in this scope
         varName = variable[0]
         varType = variable[1]
         if varName in self._scopes.variables.keys():
             if varType == '':
                 if self._scopes.variables[varName] != '':
-                    pass    # no errors, type hasn't been retyped, but the variable has a type
+                    pass  # no errors, type hasn't been retyped, but the variable has a type
                 # No need to put an else here, if the variable wasn't assigned a type before, this error was
                 # already returned
             elif varType == self._scopes.variables[varName]:
@@ -249,7 +268,8 @@ class TCA:
 
         assert self.removeEmptyLines(['', '', 'Hello There!', '', '',
                                       ' ', 'General Kenobi!'], [0, 1, 2, 3, 4, 5, 6]) == (['Hello There!', ' ',
-                                                                                          'General Kenobi!'], [2, 5, 6]), (
+                                                                                           'General Kenobi!'],
+                                                                                          [2, 5, 6]), (
             'Removing empty lines for TCA failed!',)
 
         assert self.identifyVariable('bazinga auauu:  myGuy  = wowza', 23) == ('auauu', 'myGuy'), (
@@ -260,4 +280,4 @@ class TCA:
             'Identifying variables for TCA failed! - (name)',
         )
 
-#TODO check alt+~ (`)
+# TODO check alt+~ (`)
