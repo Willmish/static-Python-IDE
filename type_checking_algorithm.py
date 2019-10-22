@@ -1,4 +1,4 @@
-from typing import List, Dict
+from typing import List, Dict, Tuple
 from DataStructures import Stack
 
 
@@ -14,7 +14,7 @@ class Scope:
         self.scopeEnding = None
         # a dictionary with all variables in a certain scope,
         # [key: variable name, value: variable type]
-        self.variables: Dict[str: str] = {}
+        self.variables: Dict[str, str] = {}
         # if there are functions within the scope, it will be
         # defined as a new scope within the scope (checked separately)
         # [key: function, value: return type]
@@ -36,14 +36,21 @@ class Scope:
     def setScopeEnding(self, index: int) -> None:
         self.scopeEnding = index
 
+    def getScopeVariables(self) -> Dict[str, str]:
+        return self.variables
+
     def getMostRecentScope(self):
         return self.subscopes[-1]
 
     def getScopeBeginning(self) -> int:
         return self.scopeBeginning
 
+    def getScopeEnding(self) -> int:
+        return self.scopeEnding
+
     def getSubscopesBeginning(self, result=''):
         result += 'b' + str(self.scopeBeginning)
+        result += str(self.variables)
         result += ' e'
         result += str(self.scopeEnding) + ' '
         if not self.subscopes:
@@ -62,9 +69,25 @@ class TCA:
         # self._scopes: List[Scope] = []
         self._scopes: Scope = Scope()
         self._tokens: List[str] = []  # Keeps track of all INDENT and DE
-        self._operators: tuple = ('+', '-', '*', '**', '/', '//', '%')
-        self._comparisonOperators: tuple = ('==', '!=', '>', '<', '<=', '>=')
+        self._operators: Tuple[str, ...] = ('+', '-', '*', '**', '/', '//', '%')
+        self._comparisonOperators: Tuple[str, ...] = ('==', '!=', '>', '<', '<=', '>=')
         self._errors: List[str] = []
+
+    # Getters and setters for TCA
+    def getScopes(self) -> Scope:
+        return self._scopes
+
+    def getTokens(self) -> List[str]:
+        return self._tokens
+
+    def getOperators(self) -> Tuple[str, ...]:
+        return self._operators
+
+    def getComparisonOperators(self) -> Tuple[str, ...]:
+        return self._comparisonOperators
+
+    def getErrorMessages(self) -> List[str]:
+        return self._errors
 
     def cleanAttributes(self) -> None:  # TODO keeping some of these values might be useful
         # (quicker runtime for multiple checks)
@@ -72,9 +95,10 @@ class TCA:
         self._tokens = []
         self._errors = []
 
-    def sortScopes(self, lines, numLines) -> None:
+    def sortScopes(self, lines: List[str], numLines: List[int]) -> None:
         currentScope = self._scopes
-        # TODO sort all scopes according to their indentation, FIXXXX
+        self._scopes.setScopeEnding(len(lines)-1)
+        # TODO sort all scopes according to their indentation, FIX
         #  use: https://docs.python.org/3/reference/lexical_analysis.html#indentation
         # create a stack to keep track of INDENT/DEDENT Tokens
         indents: Stack = Stack(len(lines) + 1)  # The '+1' is required because there is a 0 at the start
@@ -89,19 +113,21 @@ class TCA:
                 if char != ' ':
                     if j > indents.peek():
                         indents.push(j)
-                        currentScope.addSubscope(numLines[i])
+                        currentScope.addSubscope(i)
                         self._tokens[i] += 'i'
                         currentScope = currentScope.getMostRecentScope()
-                        break
                     elif j < indents.peek():
                         while j < indents.peek():
                             self._tokens[i] += 'd'
-                            currentScope.setScopeEnding(numLines[i])
+                            currentScope.setScopeEnding(i)
                             currentScope = currentScope.parent
                             indents.pop()
-                        break
-                    else:
-                        break
+                    # After managing the current scope, the algorithm looks for variables on that line,
+                    # and adds them to the current scope
+                    variables: List[Tuple[str, str]] = self.findVariablesOnLine(lines[i], numLines[i])
+                    for var in variables:
+                        currentScope.addVariable(var[0], var[1])
+                    break
                         # TODO pop until the same indent, add INDENT/DEDENT TAGS
         print(self._tokens)
         print(self._scopes)
@@ -143,7 +169,11 @@ class TCA:
             varType = ''
         return varName, varType
 
-    def findVariables(self, lines, numLines: List[int]) -> None:
+    def findVariables(self, lines: List[str], numLines: List[int], start: int = -1, end: int = -1) -> None:
+        if not (start == -1 and end == -1):
+            lines = lines[start:end+1]
+        # TODO change it so that it looks for variables in certain intervals, and run it alongside with sortScopes
+        # this way the variables will be sorted in all scopes already
         skipNext = False
         newVar: tuple
         for i, line in enumerate(lines):
@@ -153,11 +183,13 @@ class TCA:
                         if j > 0:
                             if line[j - 1] in self._operators:
                                 # if ^ true, a variable is used here, check its value
+                                print("Variable use on line: " + str(numLines[i]) + ", : " + line) # TODO when working
                                 # TODO run value checking here
                                 break
 
                             elif (line[j - 1] + line[j]) in self._comparisonOperators:
                                 # ^ if true a variable is used here for comparison
+                                print("Variable comp on line: " + str(numLines[i]) + ", : " + line)  # TODO when working
                                 break
 
                         if j < len(line) - 1:
@@ -177,8 +209,46 @@ class TCA:
                 else:
                     skipNext = False
 
-    def findVariablesUsage(self):
-        pass
+    def findVariablesOnLine(self, line: str, index: int) -> List[Tuple[str, str]]: # TODO FINISH!
+        skipNext: bool = False
+        newVars: List[Tuple[str, str]] = []
+        for j in range(0, len(line)):
+            if not skipNext:
+                if line[j] == '=':
+                    if j > 0:
+                        if line[j - 1] in self._operators:
+                            # if ^ true, a variable is used here, check its value
+                            print("Variable use on line: " + str(index) + ", : " + line)  # TODO remove when working
+                            # TODO run value checking here
+                            break
+
+                        elif (line[j - 1] + line[j]) in self._comparisonOperators:
+                            # ^ if true a variable is used here for comparison
+                            print("Variable comp on line: " + str(index) + ", : " + line)  # TODO remove when working
+                            break
+
+                    if j < len(line) - 1:
+                        if line[j + 1] == '=':
+                            # two equal signs - comparison operator
+                            skipNext = True
+
+                        else:
+                            print("Variable found on line: " + str(index) + ", : " + line)
+                            newVar = self.identifyVariable(line, j)
+                            self.checkVariableDefinition(newVar, index)
+                            newVars.append(newVar)
+                            break
+
+                    else:
+                        print("Incomplete Variable definition on line: " + str(index))
+            else:
+                skipNext = False
+        return newVars
+
+    def findVariablesUsage(self, lines: List[str], numLines: List[int], scope: Scope):
+        for var in scope.variables:
+            for i in range(scope.getScopeBeginning(), scope.getScopeEnding()+1):
+                print(lines[i].find(var[0]))   # TODO find var usage
 
     def checkForEscapeChar(self, line, index):
         backslashes = 0

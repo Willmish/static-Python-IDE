@@ -1,7 +1,7 @@
 from collections import defaultdict
 
 
-class Stack():
+class Stack:
     def __init__(self, size: int = 10) -> None:
         self._stack = [None for _ in range(size)]
         self._size = size
@@ -24,10 +24,10 @@ class Stack():
         return self._stack[self._top - 1]
 
     def isFull(self) -> bool:
-        return (self._top == self._size)
+        return self._top == self._size
 
     def isEmpty(self) -> bool:
-        return (self._top == 0)
+        return self._top == 0
 
     def __str__(self) -> str:
         result: str = ""
@@ -39,7 +39,7 @@ class Stack():
         return result
 
 
-class LinearQueue():
+class LinearQueue:
     def __init__(self, size: int = 10) -> None:
         self._q = [None for _ in range(size)]
         self._size = size
@@ -74,7 +74,7 @@ class LinearQueue():
         # return result
 
 
-class CircularQueue():
+class CircularQueue:
     def __init__(self, size: int = 10):
         self._size = size
         self._q = [None for _ in range(size)]
@@ -108,7 +108,7 @@ class CircularQueue():
         return result
 
 
-class obj():
+class obj:
     def __init__(self, value, priority: int):
         self._value = value
         self._priority: int = priority
@@ -117,7 +117,7 @@ class obj():
         return str(self._value) + ' ' + str(self._priority)
 
 
-class LinearPriorityQueue():
+class LinearPriorityQueue:
     def __init__(self, size: int = 10) -> None:
         self._q = [None for _ in range(size)]
         self._size = size

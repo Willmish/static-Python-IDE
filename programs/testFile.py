@@ -2,6 +2,7 @@ from typing import List
 
 # Im a comment!!!
 def helloWorld(): # Hi there
+    d = 'halo \# salut'
     print("Hello World!")
 
 ahoy: bool = True
@@ -15,6 +16,7 @@ def newFunction():
     a: int = 2-1
     return a # Delete me!
     if a <= 1:
+        xs: List[int] = [1,2,3]
         print('hi')
 
 b: str = 'hh'
@@ -24,6 +26,7 @@ helloWorld()
 print("goodbye")
 
 # aHOY!
+
 
 
 
