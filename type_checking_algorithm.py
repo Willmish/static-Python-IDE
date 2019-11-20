@@ -310,8 +310,9 @@ class TCA:
                             else:
                                 print("Variable found on line: " + str(index) + ", : " + line)
                                 newVar = self.identifyVariable(line, j, index)
-                                self.checkVariableDefinition(newVar, index, currentScope)
-                                newVars.append(newVar)
+                                if newVar != ('', ''):
+                                    if self.checkVariableDefinition(newVar, index, currentScope):
+                                        newVars.append(newVar)
                                 break
 
                         else:
@@ -388,12 +389,17 @@ class TCA:
                 self.addErrorMessage(lineNo, " The type of the variable " + varName + " was changed.")
                 return False
 
-        elif varType == '':
+        elif varType == '': # if the var isn;t in this scope, and it has no type, check if its in the scope above
             if thisScope.getScopeParent():
-                self.checkVariableDefinition(variable, lineNo, thisScope.parent)
+                return self.checkVariableDefinition(variable, lineNo, thisScope.getScopeParent())
             else:
                 self.addErrorMessage(lineNo, " No type assigned for variable " + variable[0])
                 return True
+        elif thisScope.getScopeParent(): # otherwise, simply check if its in the scope above
+            return self.checkVariableDefinition(variable, lineNo, thisScope.getScopeParent())
+
+        else: # otherwise, it hasn't appeared in the scopes above and it has a type => is a correct variable def
+            return True
 
     def printErrors(self):
         for line in self._errors:
