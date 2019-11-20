@@ -73,7 +73,7 @@ class View:
         openButton.pack(side=TOP)
         # Create the text editor:
         self._scroll = tkst.ScrolledText(self._root, bg='black', foreground="white",
-                                         insertbackground='white', selectbackground="blue")
+                                         insertbackground='white', selectbackground="blue", width=180, height=40)
         self._scroll.pack(side=BOTTOM)
         # change tab to n spaces
         self._scroll.bind("<Tab>", self.tab)
