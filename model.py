@@ -19,7 +19,6 @@ class Model:
 
         self._tca.sortScopes(self._lines, self._numLines)
         #self._tca.findVariables(self._lines, self._numLines)
-        print(self._tca._scopes.variables)
 
         #self._tca.findVariablesUsage(self._lines, self._numLines, self._tca.getScopes()) # TODO fix findVariables first
         self._tca.printErrors()
