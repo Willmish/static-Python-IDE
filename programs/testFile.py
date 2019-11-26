@@ -1,3 +1,4 @@
+ahoy: bool = True
 if c == '=':
     print("c is an equal sign!")
 from typing import List
@@ -9,11 +10,11 @@ def helloWorld(): # Hi there
 
 ahoy: bool = True
 
-a == b
+a == bigVar
 c = 'Wazzup # man'
 c += 2
 c -=5
-b=
+bigVar=
 
 def newFunction():
     a: int = 2-1
@@ -22,13 +23,15 @@ def newFunction():
         xs: List[int] = [1,2,3]
         print('hi')
 
-b: str = 'hh'
-b+=1
+bigVar: str = 'hh'
+bigVar+=1
 
 helloWorld()
 print("goodbye")
 
 # aHOY!
+
+
 
 
 

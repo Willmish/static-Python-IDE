@@ -43,6 +43,9 @@ class Scope:
     def getScopeVariables(self) -> Dict[str, str]:
         return self.variables
 
+    def getScopeVariableByKey(self, Key: str) -> str:
+        return self.variables[Key]
+
     def getMostRecentScope(self):
         return self.subscopes[-1]
 
@@ -148,8 +151,9 @@ class TCA:
 
         return lines, numLines
 
-    def isAnAllowedCharacterInVarName(self, character: str) -> bool:
-        if ord('a') <= ord(character) <= ord('z') or ord('A') <= ord(character) <= ord('Z') or ord('0') <= ord(character) <= ord('9') or character == '_':
+    def isAnAllowedCharacterInVarName(self, character: str) -> bool: # TODO currently added an option to allow . sign
+        # might need to remove later one
+        if ord('a') <= ord(character) <= ord('z') or ord('A') <= ord(character) <= ord('Z') or ord('0') <= ord(character) <= ord('9') or character in ('.','_'):
             return True
         return False
 
@@ -242,7 +246,7 @@ class TCA:
             varType = ''
         return varName, varType
 
-    def findVariables(self, lines: List[str], numLines: List[int], currentScope: Scope, start: int = -1, end: int = -1) -> None:
+    '''def findVariables(self, lines: List[str], numLines: List[int], currentScope: Scope, start: int = -1, end: int = -1) -> None:
         if not (start == -1 and end == -1):
             lines = lines[start:end+1]
         # TODO change it so that it looks for variables in certain intervals, and run it alongside with sortScopes
@@ -281,7 +285,7 @@ class TCA:
                         else:
                             print("Incomplete Variable definition on line: " + str(numLines[i]))
                 else:
-                    skipNext = False
+                    skipNext = False'''
 
     def findVariablesOnLine(self, line: str, index: int, currentScope: Scope) -> List[Tuple[str, str]]:
         skipNext: bool = False
@@ -321,10 +325,58 @@ class TCA:
                 skipNext = False
         return newVars
 
+    def checkIfVarReference(self, line: str, varName: str, varID: int) -> bool:
+        if varID > 0: # TODO Finish and check if works, look at the func below (it worked!)
+            if self.isAnAllowedCharacterInVarName(line[varID-1]):
+                return False
+        if varID+len(varName) < len(line):
+            if self.isAnAllowedCharacterInVarName(line[varID+len(varName)]):
+                return False
+        return True
+
     def findVariablesUsage(self, lines: List[str], numLines: List[int], scope: Scope):
-        for var in scope.variables:
-            for i in range(scope.getScopeBeginning(), scope.getScopeEnding()+1):
-                print(lines[i].find(var[0]))   # TODO find var usage
+        codeLines: List[str] = lines
+        for var in scope.variables:# TODO Check it works
+            searchStart = scope.getScopeBeginning()
+            searchEnd = scope.getScopeEnding()+1
+            i = searchStart
+            while i < searchEnd:
+                varIndex = codeLines[i].find(var)  # TODO find var usage
+                if varIndex == -1:
+                    i+=1
+                    continue
+                if not self.checkIfString(lines[i], varIndex):
+                    if varIndex > 0: # abahoyc
+                        if self.isAnAllowedCharacterInVarName(codeLines[i][varIndex-1]):
+                            # not a variable usage
+                            codeLines[i] = codeLines[i][varIndex+len(var):]
+                            continue
+                    if varIndex+len(var) < len(codeLines[i])-1:
+                        if self.isAnAllowedCharacterInVarName(codeLines[i][varIndex+len(var)]):
+                            codeLines[i] = codeLines[i][varIndex + len(var):]
+                            continue
+                    print("Var", var ," found on line: ", i, ". start index: ", varIndex)
+                i+=1
+
+    def findVariableReferenceOnLine(self, line: str, variable: Tuple[str, str]) -> List[int]:
+        # Returns all occurrences of a variable on a line
+        # TODO Finish!
+        varReference: List[int] = []
+        variableName = variable[0]
+        variableType = variable[1]
+        while True:
+            varID = line.find(variableName)
+            if varID == -1:
+                break
+            if self.checkIfString(line, varID):
+                if varID >0:
+                    pass
+
+
+        return varReference
+
+    def checkVariableUsage(self, line: str, lineNo: int, variable: Tuple[str, str]):
+        pass # Checks if the variable was used correctly here
 
     def checkIfString(self, line: str, signIndex: int) -> bool:
         # This function checks if a particular part of code is within a string, or not (mainly used to check whether
@@ -369,14 +421,12 @@ class TCA:
 
     # This function will check if all variables were defined correctly (were given a type)
     def checkVariableDefinition(self, variable: Tuple[str, str], lineNo: int, currentScope: Scope) -> bool:
-        # TODO check if this variable already exists in this scope
         varName: str = variable[0]
         varType: str = variable[1]
         thisScope: Scope = currentScope
         if varName in thisScope.getScopeVariables().keys():
             if varType == '':
                 if thisScope.getScopeVariables()[varName] != '':
-                    # TODO check if not in scopes above it
                     return False
                 # no errors, type hasn't been retyped, but the variable has a type
                 # No need to put an else here, if the variable wasn't assigned a type before, this error was
