@@ -12,7 +12,7 @@ ahoy: bool = True
 
 a == bigVar
 c = 'Wazzup # man'
-c += 2
+c += 2 - d
 c -=5
 bigVar=
 
@@ -30,6 +30,7 @@ helloWorld()
 print("goodbye")
 
 # aHOY!
+
 
 
 

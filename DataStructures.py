@@ -1,23 +1,23 @@
 from collections import defaultdict
-
+from typing import List
 
 class Stack:
     def __init__(self, size: int = 10) -> None:
-        self._stack = [None for _ in range(size)]
-        self._size = size
-        self._top = 0
+        self._stack: List[object] = [None for _ in range(size)]
+        self._size: int = size
+        self._top: int = 0
 
-    def pop(self):
+    def pop(self) -> object:
         if self.isEmpty():
             raise Exception("Stack is Empty! Cannot Pop more objects!")
 
         self._top -= 1
         return self._stack[self._top]
 
-    def push(self, obj) -> None:
+    def push(self, toPush: object) -> None:
         if self.isFull():
             raise Exception("Stack is Full! Cannot Push more objects!")
-        self._stack[self._top] = obj
+        self._stack[self._top] = toPush
         self._top += 1
 
     def peek(self):
@@ -31,7 +31,7 @@ class Stack:
 
     def __str__(self) -> str:
         result: str = ""
-        rstack = self._stack[self._top - 1::-1]
+        rstack: List[object] = self._stack[self._top - 1::-1]
         for i in range(self._top):
             result += str(rstack[i])
             result += '\n'

@@ -1,4 +1,5 @@
 from typing import List, Dict, Tuple
+
 from DataStructures import Stack
 
 
@@ -8,6 +9,7 @@ from DataStructures import Stack
 # Idea #2:
 # Don't keep track of the scopes, analyze the code line by line,
 # looking how each variable is referenced and used on each line
+# TODO if possible, replace all string with string TOKENS --> youll never have to worry about them again!
 
 class Scope:
     def __init__(self, parent=None, scopeBeginning: int=0):
@@ -43,7 +45,7 @@ class Scope:
     def getScopeVariables(self) -> Dict[str, str]:
         return self.variables
 
-    def getScopeVariableByKey(self, Key: str) -> str:
+    def getScopeVariableTypeByKey(self, Key: str) -> str:
         return self.variables[Key]
 
     def getMostRecentScope(self):
@@ -75,10 +77,17 @@ class TCA:
         # List of all scopes, each scope points to their parent
         # self._scopes: List[Scope] = []
         self._scopes: Scope = Scope()
-        self._tokens: List[str] = []  # Keeps track of all INDENT and DEDENT tokens
+        self._tokens: List[str] = []  # Keeps track of all INDENT and DEDENT tokens and other tokens
+        # token list: i indent token, d dedent token, c comparison token, f definition token, v var token followed by
+        # var name and ; sign indicating end of var name
+        self._variableUseTokens: List[str] = []  # This list keeps track of all variable usage in this format:
+        # index i: VariableName;VariableType;Variable2Name;Variable2Type;
         self._operators: Tuple[str, ...] = ('+', '-', '*', '**', '/', '//', '%')
         self._comparisonOperators: Tuple[str, ...] = ('==', '!=', '>', '<', '<=', '>=')
         self._errors: List[str] = []
+        self._linesChecked: List[bool] = []
+        self._lines: List[str] = []
+        self._numLines: List[int] = []
 
     # Getters and setters for TCA
     def getScopes(self) -> Scope:
@@ -96,8 +105,35 @@ class TCA:
     def getErrorMessages(self) -> List[str]:
         return self._errors
 
+    def getLines(self) -> List[str]:
+        return self._lines
+
+    def getNumLines(self) -> List[int]:
+        return self._numLines
+
+    def getVariableUseToken(self) -> List[str]:
+        return self._variableUseTokens
+
     def addErrorMessage(self, line: int, error: str) -> None:
         self._errors.append("Line " + str(line) + ": " + error)
+
+    def addToken(self, token: str, lineIndex) -> None:
+        self._tokens[lineIndex] += token
+
+    def addVariableUseToken(self, lineIndex: int, variableName: str, variableType: str):
+        self._variableUseTokens[lineIndex] += variableName + ';' + variableType + ';'
+
+    def setInitialLinesChecked(self, lenLines: int):
+        self._linesChecked = [False for i in range(lenLines)]
+
+    def setInitialVariableUseTokens(self, lengthOfFile: int):
+        self._variableUseTokens = ['' for _ in range(lengthOfFile)]
+
+    def setLines(self, lines: List[str]):
+        self._lines = lines
+
+    def setNumLines(self, numLines: List[int]):
+        self._numLines = numLines
 
     def cleanAttributes(self) -> None:  # TODO keeping some of these values might be useful
         # (quicker runtime for multiple checks)
@@ -134,7 +170,7 @@ class TCA:
 
         return lines
 
-    def removeEmptyLines(self, lines, numLines: List[int]) -> tuple:
+    def removeEmptyLines(self, lines: List[str], numLines: List[int]) -> Tuple[List[str], List[int]]:
         # Iterate over every element of the list, if empty, remove it
         i: int = 0
         while i < len(lines):
@@ -158,6 +194,8 @@ class TCA:
         return False
 
     def sortScopes(self, lines: List[str], numLines: List[int]) -> None:
+        # Prep the variable use tokens for future use:
+        self.setInitialVariableUseTokens(len(lines))
         currentScope = self._scopes
         self._scopes.setScopeEnding(len(lines)-1)
         # TODO sort all scopes according to their indentation, FIX
@@ -176,20 +214,20 @@ class TCA:
                     if j > indents.peek():
                         indents.push(j)
                         currentScope.addSubscope(i)
-                        self._tokens[i] += 'i'
+                        self.addToken('i', i)
                         currentScope = currentScope.getMostRecentScope()
                     elif j < indents.peek():
                         while j < indents.peek():
-                            self._tokens[i] += 'd'
+                            self.addToken('d', i)
                             currentScope.setScopeEnding(i)
                             currentScope = currentScope.parent
                             indents.pop()
-                    # After managing the current scope, the algorithm looks for variables on that line,
-                    # and adds them to the current scope
-                    variables: List[Tuple[str, str]] = self.findVariablesOnLine(lines[i], numLines[i], currentScope)
-                    for var in variables:
-                        currentScope.addVariable(var[0], var[1])
                     break
+            # After managing the current scope, the algorithm looks for variables on that line,
+            # and adds them to the current scope
+            variables: List[Tuple[str, str]] = self.findVariableDefinitionsOnLine(lines[i], i, currentScope)
+            for var in variables:
+                currentScope.addVariable(var[0], var[1])
         print(self._tokens)
         print(self._scopes)
 
@@ -287,7 +325,7 @@ class TCA:
                 else:
                     skipNext = False'''
 
-    def findVariablesOnLine(self, line: str, index: int, currentScope: Scope) -> List[Tuple[str, str]]:
+    def findVariableDefinitionsOnLine(self, line: str, index: int, currentScope: Scope) -> List[Tuple[str, str]]:
         skipNext: bool = False
         newVars: List[Tuple[str, str]] = []
         for j in range(0, len(line)):
@@ -297,26 +335,38 @@ class TCA:
                         if j > 0:
                             if line[j - 1] in self._operators:
                                 # if ^ true, a variable is used here, check its value
-                                print("Variable use on line: " + str(index) + ", : " + line)  # TODO remove when working
+                                print("Variable use on line: " + str(
+                                    self.getNumLines()[index]) + ", : " + line)  # TODO remove when working
+                                self.addToken('v', index)
                                 # TODO run value checking here
+                                # start by checking the type of the variable, if not defined, pass
+                                # otherwise check the operator. If invalid, add value error. then, check the RHS of the
+                                # = sign. if type not assigned, mark as checked (there already will be an error for the
+                                # var not being assigned a type) afterwards, pass it to a suitable function
                                 break
 
                             elif (line[j - 1] + line[j]) in self._comparisonOperators:
                                 # ^ if true a variable is used here for comparison
-                                print("Variable comp on line: " + str(index) + ", : " + line)  # TODO remove when working
+                                print("Variable comp on line: " + str(
+                                    self.getNumLines()[index]) + ", : " + line)  # TODO remove when working
+                                self.addToken('c', index)
                                 break
 
                         if j < len(line) - 1:
                             if line[j + 1] == '=':
                                 # two equal signs - comparison operator
                                 skipNext = True
+                                print("Variable comp on line: " + str(self.getNumLines()[index]) + ", : " + line)
+                                self.addToken('c', index)
+                                break
 
                             else:
-                                print("Variable found on line: " + str(index) + ", : " + line)
+                                print("Variable found on line: " + str(self.getNumLines()[index]) + ", : " + line)
                                 newVar = self.identifyVariable(line, j, index)
                                 if newVar != ('', ''):
                                     if self.checkVariableDefinition(newVar, index, currentScope):
                                         newVars.append(newVar)
+                                        self.addToken('f', index)
                                 break
 
                         else:
@@ -326,7 +376,7 @@ class TCA:
         return newVars
 
     def checkIfVarReference(self, line: str, varName: str, varID: int) -> bool:
-        if varID > 0: # TODO Finish and check if works, look at the func below (it worked!)
+        if varID > 0:
             if self.isAnAllowedCharacterInVarName(line[varID-1]):
                 return False
         if varID+len(varName) < len(line):
@@ -335,43 +385,46 @@ class TCA:
         return True
 
     def findVariablesUsage(self, lines: List[str], numLines: List[int], scope: Scope):
-        codeLines: List[str] = lines
-        for var in scope.variables:# TODO Check it works
+        codeLines: List[str] = lines[:]
+        for var in scope.variables:
             searchStart = scope.getScopeBeginning()
             searchEnd = scope.getScopeEnding()+1
-            i = searchStart
+            i: int = searchStart
             while i < searchEnd:
-                varIndex = codeLines[i].find(var)  # TODO find var usage
+                if self._linesChecked[i]:
+                    i += 1
+                    continue
+                varIndex = codeLines[i].find(var)
                 if varIndex == -1:
                     i+=1
                     continue
                 if not self.checkIfString(lines[i], varIndex):
-                    if varIndex > 0: # abahoyc
-                        if self.isAnAllowedCharacterInVarName(codeLines[i][varIndex-1]):
-                            # not a variable usage
-                            codeLines[i] = codeLines[i][varIndex+len(var):]
-                            continue
-                    if varIndex+len(var) < len(codeLines[i])-1:
-                        if self.isAnAllowedCharacterInVarName(codeLines[i][varIndex+len(var)]):
+                    if not self.checkIfVarReference(lines[i], var, varIndex):
                             codeLines[i] = codeLines[i][varIndex + len(var):]
                             continue
+                    # TODO HERE IS WHERE THE IMPORTANT BIT STARTS: ADD A NEW LIST, KEEPING TRACK OF ALL VAR USAGES, BASED ON WHICH THEY WILL BE CHECKED BOIII!
+                    self.addVariableUseToken(i, var, scope.getScopeVariableTypeByKey(var))
                     print("Var", var ," found on line: ", i, ". start index: ", varIndex)
-                i+=1
+                i += 1
 
     def findVariableReferenceOnLine(self, line: str, variable: Tuple[str, str]) -> List[int]:
+        # TODO use this function in the function above
         # Returns all occurrences of a variable on a line
-        # TODO Finish!
+        myLine = line
+        delLine = ''
         varReference: List[int] = []
         variableName = variable[0]
         variableType = variable[1]
         while True:
-            varID = line.find(variableName)
+            varID = myLine.find(variableName)
             if varID == -1:
                 break
-            if self.checkIfString(line, varID):
-                if varID >0:
-                    pass
+            if not self.checkIfString(line, varID):
+                if self.checkIfVarReference(myLine, variableName, varID):
+                    varReference.append(varID + len(delLine))
 
+            delLine += myLine[:varID + len(variableName)]
+            myLine = myLine[varID + len(variableName):]
 
         return varReference
 
@@ -482,4 +535,14 @@ class TCA:
         assert self.identifyVariable('myString:Tuple[str, int, ...] = \'#nice\'', 30, 1) == ('myString', 'Tuple[str,int,...]'), (
             'Identifying variables for TCA failed! - (name and type)',)
 
-# TODO check alt+~ (`)
+        assert self.findVariableReferenceOnLine("ooga += 2 - 3*ooga", ("ooga", "int")) == [0, 14], ("Finding variable "
+                                                                                                    "references on a "
+                                                                                                    "specific line "
+
+                                                                                                    "failed!",)
+        assert self.findVariableReferenceOnLine("self._myString -= self._myString + str(ooga)",
+                                                ("self._myString", '')) == [0, 18], (
+            " Finding variable references on a specific line failed!",)
+
+        assert self.findVariableReferenceOnLine("thisVar >= smallVar", ("smallVar", "int")) == [11], (
+            "Finding variable references on a specific line for a comparison failed!",)
