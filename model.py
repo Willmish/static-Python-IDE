@@ -19,6 +19,7 @@ class Model:
         swapTuple: Tuple[List[str], List[int]] = self._tca.removeEmptyLines(self._lines, self._numLines)
         self._lines = swapTuple[0]
         self._numLines = swapTuple[1]
+        self._numLines.append(len(self._numLines))
         self._lines.append('#')  # this string is added at the end, to ensure that if the file ends without
         # a proper dedent (e.g. ends at a certain indent != 0) it will still sort the scopes correctly
         self._tca.setLines(self._lines)
@@ -30,6 +31,8 @@ class Model:
         self._tca.findVariablesUsage(self._lines, self._numLines, self._tca.getScopes())
 
         self._tca.printErrors()
-        print(self._tca.getTokens())
-        print(self._tca.getLines())
-        print(self._tca.getVariableUseToken())
+        a = self._tca.getTokens()
+        b = self._tca.getLines()
+        c = self._tca.getVariableUseToken()
+        for i in range(len(a)):
+            print(a[i], c[i], b[i])

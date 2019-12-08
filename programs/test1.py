@@ -49,6 +49,17 @@ def hi():
     wow()
 
 
-hi()
-print(i)
-print(type(i))
+for i in range(10):
+    j: bool = True
+    print(i)
+
+print(j)
+while j:
+    print(j)
+    i -= 1
+    print(i)
+    if i == 0:
+        j = False
+    j += 1
+
+print(j)

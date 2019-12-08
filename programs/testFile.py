@@ -6,6 +6,7 @@ d: int = 2
 # Im a comment!!!
 def helloWorld(): # Hi there
     d = 'halo \# salut'
+    testVar: int = 5
     print("Hello World!")
 
 ahoy: bool = True
@@ -19,6 +20,7 @@ bigVar=
 def newFunction():
     a: int = 2-1
     return a # Delete me!
+    testVar: str = 'ahoy m8'
     if a <= 1:
         xs: List[int] = [1,2,3]
         print('hi')
@@ -30,6 +32,7 @@ helloWorld()
 print("goodbye")
 
 # aHOY!
+
 
 
 

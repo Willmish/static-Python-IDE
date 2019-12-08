@@ -4,12 +4,15 @@ from DataStructures import Stack
 
 
 # TODO differentiate list reference from a new list definition (e.g. arr: List[int] = [] and arr[0] = 4 is still the same list
+
 # TODO new idea for keeping track of the scopes - for each one remember at which line the scope began and ended,
 # in each scope store the their children in a list
 # Idea #2:
 # Don't keep track of the scopes, analyze the code line by line,
 # looking how each variable is referenced and used on each line
 # TODO if possible, replace all string with string TOKENS --> youll never have to worry about them again!
+# Issue #1: if two scopes are parallel, e.g. two loops one after the other and a function is defined in the one above,
+# it will not be recognised in the next scope
 
 class Scope:
     def __init__(self, parent=None, scopeBeginning: int=0):
@@ -57,8 +60,11 @@ class Scope:
     def getScopeEnding(self) -> int:
         return self.scopeEnding
 
+    def getSubscopes(self) -> List:
+        return self.subscopes
+
     def getSubscopesBeginning(self, result: str=''):
-        result += 'b' + str(self.scopeBeginning)
+        result += ' b' + str(self.scopeBeginning)
         result += str(self.variables)
         result += ' e'
         result += str(self.scopeEnding) + ' '
@@ -79,7 +85,7 @@ class TCA:
         self._scopes: Scope = Scope()
         self._tokens: List[str] = []  # Keeps track of all INDENT and DEDENT tokens and other tokens
         # token list: i indent token, d dedent token, c comparison token, f definition token, v var token followed by
-        # var name and ; sign indicating end of var name
+        # var name and ; sign indicating end of var name, r variable reassignment
         self._variableUseTokens: List[str] = []  # This list keeps track of all variable usage in this format:
         # index i: VariableName;VariableType;Variable2Name;Variable2Type;
         self._operators: Tuple[str, ...] = ('+', '-', '*', '**', '/', '//', '%')
@@ -120,8 +126,8 @@ class TCA:
     def addToken(self, token: str, lineIndex) -> None:
         self._tokens[lineIndex] += token
 
-    def addVariableUseToken(self, lineIndex: int, variableName: str, variableType: str):
-        self._variableUseTokens[lineIndex] += variableName + ';' + variableType + ';'
+    def addVariableUseToken(self, lineIndex: int, varIndex: int, variableName: str, variableType: str):
+        self._variableUseTokens[lineIndex] += variableName + ';' + variableType + ';' + str(varIndex) + ';'
 
     def setInitialLinesChecked(self, lenLines: int):
         self._linesChecked = [False for i in range(lenLines)]
@@ -183,6 +189,11 @@ class TCA:
                 lines.pop(i)
                 numLines.pop(i)
                 i -= 1
+            elif lines[i].isspace():  # if the line is only made up of whitespaces, delete it
+                lines.pop(i)
+                numLines.pop(i)
+                i -= 1
+
             i += 1
 
         return lines, numLines
@@ -204,6 +215,8 @@ class TCA:
         indents: Stack = Stack(len(lines) + 1)  # The '+1' is required because there is a 0 at the start
         self._tokens = ['' for _ in range(len(lines))]
         indents.push(0)  # Initial 0, to indicate that there is no indentation at the start of the file
+        skipUntilDedentNTimes = 0  # Necessary for correct scope separation
+
         for i in range(len(lines)):  # iterate over every line:
             for j, char in enumerate(lines[i]):  # and over every character
                 # if it's a space and the indentation is greater than previously,
@@ -213,11 +226,29 @@ class TCA:
                 if char != ' ':
                     if j > indents.peek():
                         indents.push(j)
+                        # TODO check if it is an actual new scope, not just a for loop or if/else statement
+                        keyIndexD = lines[i - 1].find('def')
+                        keyIndexC = lines[i - 1].find('class')
+                        if keyIndexD == -1 and keyIndexC == -1:
+                            skipUntilDedentNTimes += 1
+                            break
+                        elif keyIndexD != -1:
+                            # if it turns out that the def or Class keyword found in the line above aren't actually
+                            #  keywords, then it is not a proper scope
+                            if not self.checkIfVarReference(lines[i - 1], 'def', keyIndexD):
+                                skipUntilDedentNTimes += 1
+                                break
+                        elif not self.checkIfVarReference(lines[i - 1], 'class', keyIndexC):
+                            skipUntilDedentNTimes += 1
+                            break
                         currentScope.addSubscope(i)
                         self.addToken('i', i)
                         currentScope = currentScope.getMostRecentScope()
-                    elif j < indents.peek():
-                        while j < indents.peek():
+                    while j < indents.peek():
+                        if skipUntilDedentNTimes > 0:
+                            skipUntilDedentNTimes -= 1
+                            indents.pop()
+                        else:
                             self.addToken('d', i)
                             currentScope.setScopeEnding(i)
                             currentScope = currentScope.parent
@@ -231,7 +262,7 @@ class TCA:
         print(self._tokens)
         print(self._scopes)
 
-    def identifyVariable(self, line: str, signLoc: int, numLine: int) -> Tuple[str, str]:
+    def identifyVariable(self, line: str, signLoc: int, index: int) -> Tuple[str, str]:
         # This function is called whenever a variable definition is found, it returns
         # the name and the type of this variable
         varType: str = ''
@@ -254,8 +285,9 @@ class TCA:
                     elif line[j] == '[' or line[j] == ']':
                         return '', ''
                     else:
-                        self.addErrorMessage(numLine, "This is not a valid variable name. Variables can only consists "
-                                                      "of characters a-z, A-Z, _ and 0-9 (starting with a letter or _)")
+                        self.addErrorMessage(self.getNumLines()[index], "This is not a valid variable name. Variables "
+                                                                        "can only consists of characters a-z, A-Z, "
+                                                                        "_ and 0-9 (starting with a letter or _)")
                         return '', ''
                     j -= 1
                 break
@@ -386,42 +418,51 @@ class TCA:
 
     def findVariablesUsage(self, lines: List[str], numLines: List[int], scope: Scope):
         codeLines: List[str] = lines[:]
-        for var in scope.variables:
-            searchStart = scope.getScopeBeginning()
-            searchEnd = scope.getScopeEnding()+1
+        # TODO MAKE SURE IT CHECKS VARS IN SCOPES ABOVE ASWELL POOOPOO
+        currentScope = scope
+        for var in currentScope.getScopeVariables():
+            searchStart = currentScope.getScopeBeginning()
+            searchEnd = currentScope.getScopeEnding() + 1
             i: int = searchStart
             while i < searchEnd:
-                if self._linesChecked[i]:
+                '''if self._linesChecked[i]: # TODO check if this line was already checked, might delete
                     i += 1
                     continue
-                varIndex = codeLines[i].find(var)
-                if varIndex == -1:
-                    i+=1
+                varIndex = codeLines[i].find(var)   # find the variable name in the current codeLine
+                if varIndex == -1:  # if there is no such variable, skip this line
+                    i += 1
                     continue
-                if not self.checkIfString(lines[i], varIndex):
-                    if not self.checkIfVarReference(lines[i], var, varIndex):
-                            codeLines[i] = codeLines[i][varIndex + len(var):]
+                if not self.checkIfString(lines[i], varIndex):  # If the variable isn't in a string literal,
+                    #  check in the whole string, not the cut part
+                    if not self.checkIfVarReference(lines[i], var, varIndex):   # and if it is a correct variable
+                            codeLines[i] = codeLines[i][varIndex + len(var):]   # reference, add its useToken
                             continue
                     # TODO HERE IS WHERE THE IMPORTANT BIT STARTS: ADD A NEW LIST, KEEPING TRACK OF ALL VAR USAGES, BASED ON WHICH THEY WILL BE CHECKED BOIII!
-                    self.addVariableUseToken(i, var, scope.getScopeVariableTypeByKey(var))
-                    print("Var", var ," found on line: ", i, ". start index: ", varIndex)
+                    else:
+                        self.addVariableUseToken(i, var, currentScope.getScopeVariableTypeByKey(var))
+                        print("Var", var ," found on line: ", numLines[i], ". start index: ", varIndex)'''
+                varRef = self.findVariableReferenceOnLine(self._lines[i], var)
+                for newReference in varRef:
+                    self.addVariableUseToken(i, newReference, var, currentScope.getScopeVariableTypeByKey(var))
+                    print("Var", var, " found on line: ", numLines[i], ". start index: ", newReference)
                 i += 1
+        for myScope in currentScope.getSubscopes():
+            self.findVariablesUsage(lines, numLines, myScope)
 
-    def findVariableReferenceOnLine(self, line: str, variable: Tuple[str, str]) -> List[int]:
+    def findVariableReferenceOnLine(self, line: str, variable: str) -> List[int]:
         # TODO use this function in the function above
         # Returns all occurrences of a variable on a line
-        myLine = line
-        delLine = ''
+        myLine = line[:]
+        delLine = ''  # used to keep track of the part of the string that got deleted while looking for vars
         varReference: List[int] = []
-        variableName = variable[0]
-        variableType = variable[1]
+        variableName = variable
         while True:
             varID = myLine.find(variableName)
             if varID == -1:
                 break
             if not self.checkIfString(line, varID):
                 if self.checkIfVarReference(myLine, variableName, varID):
-                    varReference.append(varID + len(delLine))
+                    varReference.append(varID + len(delLine))  # this returns the actual index of the ref on the line
 
             delLine += myLine[:varID + len(variableName)]
             myLine = myLine[varID + len(variableName):]
@@ -473,33 +514,35 @@ class TCA:
         return backslashes % 2 != 0
 
     # This function will check if all variables were defined correctly (were given a type)
-    def checkVariableDefinition(self, variable: Tuple[str, str], lineNo: int, currentScope: Scope) -> bool:
+    def checkVariableDefinition(self, variable: Tuple[str, str], index: int, currentScope: Scope) -> bool:
         varName: str = variable[0]
         varType: str = variable[1]
         thisScope: Scope = currentScope
         if varName in thisScope.getScopeVariables().keys():
             if varType == '':
                 if thisScope.getScopeVariables()[varName] != '':
+                    self.addToken('r', index)
                     return False
                 # no errors, type hasn't been retyped, but the variable has a type
                 # No need to put an else here, if the variable wasn't assigned a type before, this error was
                 # already returned
             elif varType == thisScope.getScopeVariables()[varName]:
-                self.addErrorMessage(lineNo, " The type of the variable " + varName +
+                self.addErrorMessage(self.getNumLines()[index], " The type of the variable " + varName +
                                      " was unnecessarily reassigned (it was already assigned in this program)")
                 return False
             else:
-                self.addErrorMessage(lineNo, " The type of the variable " + varName + " was changed.")
+                self.addErrorMessage(self.getNumLines()[index],
+                                     " The type of the variable " + varName + " was changed.")
                 return False
 
-        elif varType == '': # if the var isn;t in this scope, and it has no type, check if its in the scope above
+        elif varType == '':  # if the var isn;t in this scope, and it has no type, check if its in the scope above
             if thisScope.getScopeParent():
-                return self.checkVariableDefinition(variable, lineNo, thisScope.getScopeParent())
+                return self.checkVariableDefinition(variable, index, thisScope.getScopeParent())
             else:
-                self.addErrorMessage(lineNo, " No type assigned for variable " + variable[0])
+                self.addErrorMessage(self.getNumLines()[index], " No type assigned for variable " + variable[0])
                 return True
-        elif thisScope.getScopeParent(): # otherwise, simply check if its in the scope above
-            return self.checkVariableDefinition(variable, lineNo, thisScope.getScopeParent())
+        elif thisScope.getScopeParent():  # otherwise, simply check if its in the scope above
+            return self.checkVariableDefinition(variable, index, thisScope.getScopeParent())
 
         else: # otherwise, it hasn't appeared in the scopes above and it has a type => is a correct variable def
             return True
@@ -519,9 +562,9 @@ class TCA:
             'Removing comments for TCA failed!',)
 
         assert self.removeEmptyLines(['', '', 'Hello There!', '', '',
-                                      ' ', 'General Kenobi!'], [0, 1, 2, 3, 4, 5, 6]) == (['Hello There!', ' ',
+                                      ' ', 'General Kenobi!'], [0, 1, 2, 3, 4, 5, 6]) == (['Hello There!',
                                                                                            'General Kenobi!'],
-                                                                                          [2, 5, 6]), (
+                                                                                          [2, 6]), (
             'Removing empty lines for TCA failed!',)
 
         assert self.identifyVariable('bazinga auauu:  myGuy  = wowza', 23, 1) == ('auauu', 'myGuy'), (
@@ -535,14 +578,14 @@ class TCA:
         assert self.identifyVariable('myString:Tuple[str, int, ...] = \'#nice\'', 30, 1) == ('myString', 'Tuple[str,int,...]'), (
             'Identifying variables for TCA failed! - (name and type)',)
 
-        assert self.findVariableReferenceOnLine("ooga += 2 - 3*ooga", ("ooga", "int")) == [0, 14], ("Finding variable "
+        assert self.findVariableReferenceOnLine("ooga += 2 - 3*ooga", "ooga") == [0, 14], ("Finding variable "
                                                                                                     "references on a "
                                                                                                     "specific line "
 
                                                                                                     "failed!",)
         assert self.findVariableReferenceOnLine("self._myString -= self._myString + str(ooga)",
-                                                ("self._myString", '')) == [0, 18], (
+                                                "self._myString") == [0, 18], (
             " Finding variable references on a specific line failed!",)
 
-        assert self.findVariableReferenceOnLine("thisVar >= smallVar", ("smallVar", "int")) == [11], (
+        assert self.findVariableReferenceOnLine("thisVar >= smallVar", "smallVar") == [11], (
             "Finding variable references on a specific line for a comparison failed!",)
