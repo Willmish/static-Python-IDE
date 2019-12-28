@@ -3,6 +3,11 @@ if c == '=':
     print("c is an equal sign!")
 from typing import List
 d: int = 2
+d -= 42
+d = essa
+d = 2
+d /= 8 - 2
+d //= 9
 # Im a comment!!!
 def helloWorld(): # Hi there
     d = 'halo \# salut'
@@ -32,6 +37,7 @@ helloWorld()
 print("goodbye")
 
 # aHOY!
+
 
 
 

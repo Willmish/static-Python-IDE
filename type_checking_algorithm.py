@@ -3,6 +3,8 @@ from typing import List, Dict, Tuple
 from DataStructures import Stack
 
 
+# TODO RETHINK THE ERROR PRINTING METHOD, MAYBE ADD AN OPTION FOR POINTING THE ERROR DIRECTLY (LOOK test1.py for an example)
+
 # TODO differentiate list reference from a new list definition (e.g. arr: List[int] = [] and arr[0] = 4 is still the same list
 
 # TODO new idea for keeping track of the scopes - for each one remember at which line the scope began and ended,
@@ -78,18 +80,40 @@ class Scope:
         return self.getSubscopesBeginning()
 
 
+class Variable:
+    def __init__(self, variableName: str, variableType: str, indexOnLine: int):
+        self._name = variableName
+        self._type = variableType
+        self._indexOnLine = indexOnLine
+
+    def getName(self) -> str:
+        return self._name
+
+    def getType(self) -> str:
+        return self._type
+
+    def getIndex(self) -> int:
+        return self._indexOnLine
+
+    def __str__(self) -> str:
+        return self.getName() + ';' + self.getType() + ';' + str(self.getIndex()) + ';'
+
+
 class TCA:
     def __init__(self):
         # List of all scopes, each scope points to their parent
         # self._scopes: List[Scope] = []
         self._scopes: Scope = Scope()
         self._tokens: List[str] = []  # Keeps track of all INDENT and DEDENT tokens and other tokens
-        # token list: i indent token, d dedent token, c comparison token, f definition token, v var token followed by
-        # var name and ; sign indicating end of var name, r variable reassignment
-        self._variableUseTokens: List[str] = []  # This list keeps track of all variable usage in this format:
+        # token list: i indent token, d dedent token, c comparison token, f definition token, v var redefinition with an
+        # operator token followed by var name and ; sign indicating end of var name, r variable reassignment
+        self._variableUseTokens: List[
+            List[Variable]] = []  # This list keeps track of all variable usage in this format:
         # index i: VariableName;VariableType;Variable2Name;Variable2Type;
         self._operators: Tuple[str, ...] = ('+', '-', '*', '**', '/', '//', '%')
         self._comparisonOperators: Tuple[str, ...] = ('==', '!=', '>', '<', '<=', '>=')
+        self._integerCharacters: Tuple[str, ...] = ('0', '1', '2', '3', '4', '5', '6', '7', '8', '9')
+        self._integerOperators: Tuple[str, ...] = ('+', '-', '*' '**', '//', '%')
         self._errors: List[str] = []
         self._linesChecked: List[bool] = []
         self._lines: List[str] = []
@@ -117,8 +141,14 @@ class TCA:
     def getNumLines(self) -> List[int]:
         return self._numLines
 
-    def getVariableUseToken(self) -> List[str]:
+    def getVariableUseToken(self) -> List[List[Variable]]:
         return self._variableUseTokens
+
+    def getIntegerCharacters(self) -> Tuple[str, ...]:
+        return self._integerCharacters
+
+    def getIntegerOperators(self) -> Tuple[str, ...]:
+        return self._integerOperators
 
     def addErrorMessage(self, line: int, error: str) -> None:
         self._errors.append("Line " + str(line) + ": " + error)
@@ -127,19 +157,22 @@ class TCA:
         self._tokens[lineIndex] += token
 
     def addVariableUseToken(self, lineIndex: int, varIndex: int, variableName: str, variableType: str):
-        self._variableUseTokens[lineIndex] += variableName + ';' + variableType + ';' + str(varIndex) + ';'
+        self._variableUseTokens[lineIndex].append(Variable(variableName, variableType, varIndex))
 
     def setInitialLinesChecked(self, lenLines: int):
         self._linesChecked = [False for i in range(lenLines)]
 
     def setInitialVariableUseTokens(self, lengthOfFile: int):
-        self._variableUseTokens = ['' for _ in range(lengthOfFile)]
+        self._variableUseTokens = [[] for _ in range(lengthOfFile)]
 
     def setLines(self, lines: List[str]):
         self._lines = lines
 
     def setNumLines(self, numLines: List[int]):
         self._numLines = numLines
+
+    def setVariableUseTokens(self, tokens: List[List[Variable]]):
+        self._variableUseTokens = tokens
 
     def cleanAttributes(self) -> None:  # TODO keeping some of these values might be useful
         # (quicker runtime for multiple checks)
@@ -316,47 +349,6 @@ class TCA:
             varType = ''
         return varName, varType
 
-    '''def findVariables(self, lines: List[str], numLines: List[int], currentScope: Scope, start: int = -1, end: int = -1) -> None:
-        if not (start == -1 and end == -1):
-            lines = lines[start:end+1]
-        # TODO change it so that it looks for variables in certain intervals, and run it alongside with sortScopes
-        # this way the variables will be sorted in all scopes already
-        skipNext = False
-        newVar: tuple
-        for i, line in enumerate(lines):
-            for j in range(0, len(line)):
-                if not skipNext:
-                    if line[j] == '=':
-                        if j > 0:
-                            if line[j - 1] in self._operators:
-                                # if ^ true, a variable is used here, check its value
-                                print("Variable use on line: " + str(numLines[i]) + ", : " + line) # TODO when working
-                                # TODO run value checking here
-                                break
-
-                            elif (line[j - 1] + line[j]) in self._comparisonOperators:
-                                # ^ if true a variable is used here for comparison
-                                print("Variable comp on line: " + str(numLines[i]) + ", : " + line)  # TODO when working
-                                break
-
-                        if j < len(line) - 1:
-                            if line[j + 1] == '=':
-                                # two equal signs - comparison operator
-                                skipNext = True
-
-                            else:
-                                print("Variable found on line: " + str(numLines[i]) + ", : " + line)
-                                newVar = self.identifyVariable(line, j, numLines[i])
-                                if newVar != ('',''):
-                                    if self.checkVariableDefinition(newVar, numLines[i], currentScope):
-                                        self._scopes.addVariable(newVar[0], newVar[1])
-                                break
-
-                        else:
-                            print("Incomplete Variable definition on line: " + str(numLines[i]))
-                else:
-                    skipNext = False'''
-
     def findVariableDefinitionsOnLine(self, line: str, index: int, currentScope: Scope) -> List[Tuple[str, str]]:
         skipNext: bool = False
         newVars: List[Tuple[str, str]] = []
@@ -367,7 +359,7 @@ class TCA:
                         if j > 0:
                             if line[j - 1] in self._operators:
                                 # if ^ true, a variable is used here, check its value
-                                print("Variable use on line: " + str(
+                                print("Variable redefinition with an operator on line: " + str(
                                     self.getNumLines()[index]) + ", : " + line)  # TODO remove when working
                                 self.addToken('v', index)
                                 # TODO run value checking here
@@ -416,8 +408,7 @@ class TCA:
                 return False
         return True
 
-    def findVariablesUsage(self, lines: List[str], numLines: List[int], scope: Scope):
-        codeLines: List[str] = lines[:]
+    def findVariablesReference(self, lines: List[str], numLines: List[int], scope: Scope):
         # TODO MAKE SURE IT CHECKS VARS IN SCOPES ABOVE ASWELL POOOPOO
         currentScope = scope
         for var in currentScope.getScopeVariables():
@@ -425,29 +416,13 @@ class TCA:
             searchEnd = currentScope.getScopeEnding() + 1
             i: int = searchStart
             while i < searchEnd:
-                '''if self._linesChecked[i]: # TODO check if this line was already checked, might delete
-                    i += 1
-                    continue
-                varIndex = codeLines[i].find(var)   # find the variable name in the current codeLine
-                if varIndex == -1:  # if there is no such variable, skip this line
-                    i += 1
-                    continue
-                if not self.checkIfString(lines[i], varIndex):  # If the variable isn't in a string literal,
-                    #  check in the whole string, not the cut part
-                    if not self.checkIfVarReference(lines[i], var, varIndex):   # and if it is a correct variable
-                            codeLines[i] = codeLines[i][varIndex + len(var):]   # reference, add its useToken
-                            continue
-                    # TODO HERE IS WHERE THE IMPORTANT BIT STARTS: ADD A NEW LIST, KEEPING TRACK OF ALL VAR USAGES, BASED ON WHICH THEY WILL BE CHECKED BOIII!
-                    else:
-                        self.addVariableUseToken(i, var, currentScope.getScopeVariableTypeByKey(var))
-                        print("Var", var ," found on line: ", numLines[i], ". start index: ", varIndex)'''
                 varRef = self.findVariableReferenceOnLine(self._lines[i], var)
                 for newReference in varRef:
                     self.addVariableUseToken(i, newReference, var, currentScope.getScopeVariableTypeByKey(var))
                     print("Var", var, " found on line: ", numLines[i], ". start index: ", newReference)
                 i += 1
         for myScope in currentScope.getSubscopes():
-            self.findVariablesUsage(lines, numLines, myScope)
+            self.findVariablesReference(lines, numLines, myScope)
 
     def findVariableReferenceOnLine(self, line: str, variable: str) -> List[int]:
         # TODO use this function in the function above
@@ -460,8 +435,8 @@ class TCA:
             varID = myLine.find(variableName)
             if varID == -1:
                 break
-            if not self.checkIfString(line, varID):
-                if self.checkIfVarReference(myLine, variableName, varID):
+            if not self.checkIfString(line, varID):  # If the variable isn't in a string literal,
+                if self.checkIfVarReference(myLine, variableName, varID):  # check in the whole string, not the cut part
                     varReference.append(varID + len(delLine))  # this returns the actual index of the ref on the line
 
             delLine += myLine[:varID + len(variableName)]
@@ -469,7 +444,147 @@ class TCA:
 
         return varReference
 
-    def checkVariableUsage(self, line: str, lineNo: int, variable: Tuple[str, str]):
+    def sortVariableUseTokens(self):
+        # This function sorts all varUse tokens according to the order of appearance (key attribute means that the
+        # following function will be applied to all elements, and assumes it returns a single value based on which it
+        # can be sorted
+        newList = []
+        for line in self.getVariableUseToken():
+            newList.append(sorted(line, key=lambda varIndex: varIndex.getIndex()))
+        self.setVariableUseTokens(newList)
+
+    def checkVariablesUsage(self):  # TODO finish it!!
+        self.sortVariableUseTokens()
+        # for i in self.getVariableUseToken():
+        #    print(i)
+        useTokens = self.getVariableUseToken()
+        useTypeTokens = self.getTokens()
+        for index, line in enumerate(self.getLines()):
+            print(index, line)
+            if useTypeTokens[index] == '':
+                continue
+
+            if 'c' in useTypeTokens[index]:
+                pass  # It's a comparison
+
+            elif 'f' in useTypeTokens[index]:  # It is a definition
+                definedVar = useTokens[index][0]
+                if definedVar.getType() == '':
+                    continue
+
+                useTokens[index].remove(definedVar)
+                if not useTokens[index]:  # Run single variable checking here
+
+                    # -----INTEGERS-----
+                    if definedVar.getType() == 'int':
+                        checkLine = line[line.find('=') + 1:]
+                        print(checkLine)
+                        if not self.checkIfInteger(checkLine):
+                            self.addErrorMessage(self.getNumLines()[index],
+                                                 ('TYPE ERROR: Integer Variable ' + definedVar.getName() +
+                                                  ' is assigned a non integer value on this line.'))
+                    # ------------------
+                    # -----STRINGS------
+                    # TODO CHECK WHAT OPERATION CAN BE CARRIED OUT ON STRINGS
+                    if definedVar.getType() == 'str':
+                        checkLine = line[line.find('=') + 1:]
+                        apostrophes: int = 0
+                        speechmarks: int = 0
+                        for charIndex, character in enumerate(checkLine):
+                            # If the character is inside a string literal, skip it
+                            if apostrophes != 0 and apostrophes % 2 != 0:
+                                continue
+                            elif speechmarks != 0 and speechmarks % 2 != 0:
+                                continue
+                            if character == "'":
+                                if not self.checkForEscapeChar(checkLine, charIndex):
+                                    apostrophes += 1
+                                else:
+                                    self.addErrorMessage(self.getNumLines()[index], 'TYPE ERROR: Unexpected character '
+                                                                                    'after line continuation character'
+                                                                                    ' (backslash) ')
+
+                            elif character == '"':
+                                if not self.checkForEscapeChar(checkLine, charIndex):
+                                    speechmarks += 1
+                                else:
+                                    self.addErrorMessage(self.getNumLines()[index], 'TYPE ERROR: Unexpected character '
+                                                                                    'after line continuation character'
+                                                                                    ' (backslash) ')
+
+                    # ------------------
+                else:
+                    pass  # Run multi-var checking here
+
+            elif 'r' in self.getTokens()[index]:  # It is a redefinition with no operators
+                redefinedVar = useTokens[index][0]
+                if redefinedVar.getType() == '':
+                    continue
+
+                useTokens[index].remove(redefinedVar)
+
+                if not useTokens[index]:
+                    if redefinedVar.getType() == 'int':
+                        equalSignIndex = line.find('=')
+                        checkLine = line[equalSignIndex + 1:]
+                        if not self.checkIfInteger(checkLine):
+                            self.addErrorMessage(self.getNumLines()[index], ('TYPE ERROR: Integer Variable '
+                                                                             + redefinedVar.getName() +
+                                                                             ' is assigned a non integer value'
+                                                                             ' on this line.'))
+                            continue
+                else:
+                    ...  # Run multi-variable checking here
+
+            elif 'v' in self.getTokens()[index]:  # It is a redefinition
+                redefinedVar = useTokens[index][0]
+                if redefinedVar.getType() == '':
+                    continue
+
+                useTokens[index].remove(redefinedVar)
+
+                if not useTokens[index]:
+                    if redefinedVar.getType() == 'int':
+                        equalSignIndex = line.find('=')
+                        print(line[equalSignIndex])
+                        if line[equalSignIndex - 1] == '/':
+                            if equalSignIndex - 2 >= 0:
+                                if line[equalSignIndex - 1] + line[equalSignIndex - 2] != '//':
+                                    self.addErrorMessage(self.getNumLines()[index], 'Type ERROR: Integer Variable '
+                                                         + redefinedVar.getName()
+                                                         + ' is reassigned using a non Integer operator '
+                                                           '(Non-Integer Division / )')
+                                    continue
+
+                        checkLine = line[equalSignIndex + 1:]
+                        print(checkLine)
+                        if not self.checkIfInteger(checkLine):
+                            self.addErrorMessage(self.getNumLines()[index], ('TYPE ERROR: Integer Variable '
+                                                                             + redefinedVar.getName() +
+                                                                             ' is assigned a non integer value'
+                                                                             ' on this line.'))
+                            continue
+
+    def checkIfInteger(self, checkLine: str) -> bool:
+        skipNext = False
+        for charIndex, character in enumerate(checkLine):
+            if skipNext:
+                skipNext = False
+                continue
+
+            if not (character in self.getIntegerCharacters()
+                    or character in self.getIntegerOperators() or character == ' '):
+                if charIndex < len(checkLine) - 1:  # Checks if its not a 2 character operator (//)
+                    if (character + checkLine[charIndex]) not in self.getIntegerOperators():
+                        return False
+                    else:
+                        skipNext = True  # skip next character to avoid errors, (a // char was used)
+                        continue
+                else:
+                    return False
+        return True
+
+    def checkVariableUsageOnLine(self, line: str, lineNo: int, variable: Tuple[str, str]):
         pass # Checks if the variable was used correctly here
 
     def checkIfString(self, line: str, signIndex: int) -> bool:

@@ -35,7 +35,7 @@ dict['hi'] = 2
 dict[3] = (1, 3.14)
 print(dict)
 '''
-
+'''
 i: int = 5
 
 def hi():
@@ -63,3 +63,6 @@ while j:
     j += 1
 
 print(j)
+'''
+s: str = \'
+print(s)

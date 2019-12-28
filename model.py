@@ -27,12 +27,14 @@ class Model:
         self._tca.setInitialLinesChecked(len(self._lines))
 
         self._tca.sortScopes(self._lines, self._numLines)
-        #self._tca.findVariables(self._lines, self._numLines)
-        self._tca.findVariablesUsage(self._lines, self._numLines, self._tca.getScopes())
+        # self._tca.findVariables(self._lines, self._numLines)
+        self._tca.findVariablesReference(self._lines, self._numLines, self._tca.getScopes())
 
-        self._tca.printErrors()
         a = self._tca.getTokens()
         b = self._tca.getLines()
         c = self._tca.getVariableUseToken()
         for i in range(len(a)):
-            print(a[i], c[i], b[i])
+            print(a[i], [str(item) for item in c[i]], b[i])
+
+        self._tca.checkVariablesUsage()
+        self._tca.printErrors()
