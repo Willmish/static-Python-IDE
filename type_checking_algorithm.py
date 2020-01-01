@@ -3,6 +3,8 @@ from typing import List, Dict, Tuple
 from DataStructures import Stack
 
 
+# TODO ANALYSE THE CASE WHAT HAPPENS IF THERE IS A VAR with just an = sign (e.g. bigVar= )
+# TODO NOTE: VARIABLES IN SCOPES ABOVE CAN BE ACCESSED BUT NOT MODIFIED WITHOUT GLOBAL KEYWORD
 # TODO RETHINK THE ERROR PRINTING METHOD, MAYBE ADD AN OPTION FOR POINTING THE ERROR DIRECTLY (LOOK test1.py for an example)
 
 # TODO differentiate list reference from a new list definition (e.g. arr: List[int] = [] and arr[0] = 4 is still the same list
@@ -17,7 +19,7 @@ from DataStructures import Stack
 # it will not be recognised in the next scope
 
 class Scope:
-    def __init__(self, parent=None, scopeBeginning: int=0):
+    def __init__(self, parent=None, scopeBeginning: int = 0):
         self.scopeBeginning: int = scopeBeginning
         self.scopeEnding: int = None
         # a dictionary with all variables in a certain scope,
@@ -65,7 +67,7 @@ class Scope:
     def getSubscopes(self) -> List:
         return self.subscopes
 
-    def getSubscopesBeginning(self, result: str=''):
+    def getSubscopesBeginning(self, result: str = ''):
         result += ' b' + str(self.scopeBeginning)
         result += str(self.variables)
         result += ' e'
@@ -189,16 +191,16 @@ class TCA:
             # so I have the index as well as the value thanks to
             # https://stackoverflow.com/questions/522563/accessing-the-index-in-for-loops
             for j, character in enumerate(lines[i]):
-                if character == '\'':   # The part below ensures that no string literals containing
-                    if j > 0:           # '#' signs will be cut off
-                        if not self.checkForEscapeChar(lines[i], j-1):
+                if character == '\'':  # The part below ensures that no string literals containing
+                    if j > 0:  # '#' signs will be cut off
+                        if not self.checkForEscapeChar(lines[i], j):
                             apostrophes += 1
                     else:
                         apostrophes += 1
 
                 elif character == '\"':
                     if j > 0:
-                        if not self.checkForEscapeChar(lines[i], j-1):
+                        if not self.checkForEscapeChar(lines[i], j):
                             speechmarks += 1
                     else:
                         speechmarks += 1
@@ -231,9 +233,10 @@ class TCA:
 
         return lines, numLines
 
-    def isAnAllowedCharacterInVarName(self, character: str) -> bool: # TODO currently added an option to allow . sign
+    def isAnAllowedCharacterInVarName(self, character: str) -> bool:  # TODO currently added an option to allow . sign
         # might need to remove later one
-        if ord('a') <= ord(character) <= ord('z') or ord('A') <= ord(character) <= ord('Z') or ord('0') <= ord(character) <= ord('9') or character in ('.','_'):
+        if ord('a') <= ord(character) <= ord('z') or ord('A') <= ord(character) <= ord('Z') or ord('0') <= ord(
+                character) <= ord('9') or character in ('.', '_'):
             return True
         return False
 
@@ -241,7 +244,7 @@ class TCA:
         # Prep the variable use tokens for future use:
         self.setInitialVariableUseTokens(len(lines))
         currentScope = self._scopes
-        self._scopes.setScopeEnding(len(lines)-1)
+        self._scopes.setScopeEnding(len(lines) - 1)
         # TODO sort all scopes according to their indentation, FIX
         #  use: https://docs.python.org/3/reference/lexical_analysis.html#indentation
         # create a stack to keep track of INDENT/DEDENT Tokens
@@ -303,7 +306,7 @@ class TCA:
         whitespaceOccurred: bool = False
         # The above variable is necessary, because if there are any non-whitespace characters
         # before the var definition, they might get included in the varType
-        openingBrackets: int = 0    # Used to keep track of opening brackets, allows the use of Complex types,
+        openingBrackets: int = 0  # Used to keep track of opening brackets, allows the use of Complex types,
         # such as Tuple[str, ...]
         closingBrackets: int = 0
         for i in range(signLoc - 1, -1, -1):
@@ -313,7 +316,7 @@ class TCA:
                 while j >= 0:
                     if line[j] == ' ':  # if end of the definition, break
                         break
-                    if self.isAnAllowedCharacterInVarName(line[j]): # omits characters not valid for var definition
+                    if self.isAnAllowedCharacterInVarName(line[j]):  # omits characters not valid for var definition
                         varName += line[j]  # add all characters to the varName until a space appears
                     elif line[j] == '[' or line[j] == ']':
                         return '', ''
@@ -355,7 +358,7 @@ class TCA:
         for j in range(0, len(line)):
             if not skipNext:
                 if line[j] == '=':
-                    if not self.checkIfString(line, j):  # TODO FINISH
+                    if not self.checkIfInString(line, j):  # TODO FINISH
                         if j > 0:
                             if line[j - 1] in self._operators:
                                 # if ^ true, a variable is used here, check its value
@@ -394,22 +397,28 @@ class TCA:
                                 break
 
                         else:
-                            print("Incomplete Variable definition on line: " + str(index))
+                            print("Incomplete Variable definition on line: " + str(index) + ': ' + line)
+                            # But it can still be identified:
+                            newVar = self.identifyVariable(line, j, index)
+                            if newVar != ('', ''):
+                                if self.checkVariableDefinition(newVar, index, currentScope):
+                                    newVars.append(newVar)
+                                    self.addToken('f', index)
+                            break
             else:
                 skipNext = False
         return newVars
 
     def checkIfVarReference(self, line: str, varName: str, varID: int) -> bool:
         if varID > 0:
-            if self.isAnAllowedCharacterInVarName(line[varID-1]):
+            if self.isAnAllowedCharacterInVarName(line[varID - 1]):
                 return False
-        if varID+len(varName) < len(line):
-            if self.isAnAllowedCharacterInVarName(line[varID+len(varName)]):
+        if varID + len(varName) < len(line):
+            if self.isAnAllowedCharacterInVarName(line[varID + len(varName)]):
                 return False
         return True
 
     def findVariablesReference(self, lines: List[str], numLines: List[int], scope: Scope):
-        # TODO MAKE SURE IT CHECKS VARS IN SCOPES ABOVE ASWELL POOOPOO
         currentScope = scope
         for var in currentScope.getScopeVariables():
             searchStart = currentScope.getScopeBeginning()
@@ -425,7 +434,6 @@ class TCA:
             self.findVariablesReference(lines, numLines, myScope)
 
     def findVariableReferenceOnLine(self, line: str, variable: str) -> List[int]:
-        # TODO use this function in the function above
         # Returns all occurrences of a variable on a line
         myLine = line[:]
         delLine = ''  # used to keep track of the part of the string that got deleted while looking for vars
@@ -435,8 +443,9 @@ class TCA:
             varID = myLine.find(variableName)
             if varID == -1:
                 break
-            if not self.checkIfString(line, varID):  # If the variable isn't in a string literal,
-                if self.checkIfVarReference(myLine, variableName, varID):  # check in the whole string, not the cut part
+            if not self.checkIfInString(line, varID + len(delLine)):  # If the variable isn't in a string literal,
+                if self.checkIfVarReference(line, variableName,
+                                            varID + len(delLine)):  # check in the whole string, not the cut part
                     varReference.append(varID + len(delLine))  # this returns the actual index of the ref on the line
 
             delLine += myLine[:varID + len(variableName)]
@@ -467,86 +476,94 @@ class TCA:
             if 'c' in useTypeTokens[index]:
                 pass  # It's a comparison
 
-            elif 'f' in useTypeTokens[index]:  # It is a definition
+            elif 'f' in useTypeTokens[index] or 'r' in useTypeTokens[index]:  # It is a definition or
+                #                                                               no operator redefinition
                 definedVar = useTokens[index][0]
                 if definedVar.getType() == '':
                     continue
 
                 useTokens[index].remove(definedVar)
+                checkLine = line[line.find('=') + 1:]
                 if not useTokens[index]:  # Run single variable checking here
 
                     # -----INTEGERS-----
                     if definedVar.getType() == 'int':
-                        checkLine = line[line.find('=') + 1:]
                         print(checkLine)
                         if not self.checkIfInteger(checkLine):
                             self.addErrorMessage(self.getNumLines()[index],
                                                  ('TYPE ERROR: Integer Variable ' + definedVar.getName() +
-                                                  ' is assigned a non integer value on this line.'))
+                                                  ' was assigned a non integer value on this line.'))
                     # ------------------
                     # -----STRINGS------
                     # TODO CHECK WHAT OPERATION CAN BE CARRIED OUT ON STRINGS
-                    if definedVar.getType() == 'str':
-                        checkLine = line[line.find('=') + 1:]
-                        apostrophes: int = 0
-                        speechmarks: int = 0
-                        for charIndex, character in enumerate(checkLine):
-                            # If the character is inside a string literal, skip it
-                            if apostrophes != 0 and apostrophes % 2 != 0:
-                                continue
-                            elif speechmarks != 0 and speechmarks % 2 != 0:
-                                continue
-                            if character == "'":
-                                if not self.checkForEscapeChar(checkLine, charIndex):
-                                    apostrophes += 1
-                                else:
-                                    self.addErrorMessage(self.getNumLines()[index], 'TYPE ERROR: Unexpected character '
-                                                                                    'after line continuation character'
-                                                                                    ' (backslash) ')
-
-                            elif character == '"':
-                                if not self.checkForEscapeChar(checkLine, charIndex):
-                                    speechmarks += 1
-                                else:
-                                    self.addErrorMessage(self.getNumLines()[index], 'TYPE ERROR: Unexpected character '
-                                                                                    'after line continuation character'
-                                                                                    ' (backslash) ')
-
+                    elif definedVar.getType() == 'str':
+                        checkVal = self.checkIfString(checkLine)
+                        if checkVal == 0:
+                            continue
+                        elif checkVal == 1:
+                            self.addErrorMessage(self.getNumLines()[index], 'Unexpected character '
+                                                                            'after line continuation character'
+                                                                            ' (backslash) ')
+                        else:
+                            self.addErrorMessage(self.getNumLines()[index], 'TYPE ERROR: string '
+                                                                            'variable ' + definedVar.getName() +
+                                                 ' was assigned a non string value on '
+                                                 'this line.')
+                    # ------------------
+                    # -----FLOATS-------
+                    elif definedVar.getType() == 'float':
+                        checkVal = self.checkIfFloat(checkLine)
+                        if checkVal == 0:
+                            continue
+                        elif checkVal == 1:
+                            self.addErrorMessage(self.getNumLines()[index], 'TYPE ERROR: Float '
+                                                                            'variable ' + definedVar.getType() +
+                                                 ' was assigned a non Float value on this line.')
+                        elif checkVal == 2:
+                            self.addErrorMessage(self.getNumLines()[index], 'TYPE ERROR: Float variable ' +
+                                                 definedVar.getType() + ' was assigned a non Float value on this line; '
+                                                                        'Only integers appeared (Perhaps use a single /'
+                                                                        ' division or add a decimal point')
                     # ------------------
                 else:
                     pass  # Run multi-var checking here
 
-            elif 'r' in self.getTokens()[index]:  # It is a redefinition with no operators
-                redefinedVar = useTokens[index][0]
-                if redefinedVar.getType() == '':
-                    continue
-
-                useTokens[index].remove(redefinedVar)
-
-                if not useTokens[index]:
-                    if redefinedVar.getType() == 'int':
-                        equalSignIndex = line.find('=')
-                        checkLine = line[equalSignIndex + 1:]
-                        if not self.checkIfInteger(checkLine):
-                            self.addErrorMessage(self.getNumLines()[index], ('TYPE ERROR: Integer Variable '
-                                                                             + redefinedVar.getName() +
-                                                                             ' is assigned a non integer value'
-                                                                             ' on this line.'))
-                            continue
-                else:
-                    ...  # Run multi-variable checking here
+            # elif 'r' in self.getTokens()[index]:  # It is a redefinition with no operators
+            #    redefinedVar = useTokens[index][0]  # First variable is the redefined var
+            #    if redefinedVar.getType() == '':
+            #        continue
+            #
+            #    useTokens[index].remove(redefinedVar)
+            #
+            #    if not useTokens[index]:
+            #        # If no other variable references on this line, its a single var redef
+            #        equalSignIndex = line.find('=')
+            #        checkLine = line[equalSignIndex + 1:]
+            #        # ---- INTEGER ----
+            #        if redefinedVar.getType() == 'int':
+            #            if not self.checkIfInteger(checkLine):
+            #                self.addErrorMessage(self.getNumLines()[index], ('TYPE ERROR: Integer Variable '
+            #                                                                 + redefinedVar.getName() +
+            #                                                                 ' is assigned a non integer value'
+            #                                                                 ' on this line.'))
+            #                continue
+            #        # -----------------
+            #        # ---- STRING -----
+            #        if redefinedVar.getType() == 'str':
+            #            pass
+            #        # -----------------
 
             elif 'v' in self.getTokens()[index]:  # It is a redefinition
-                redefinedVar = useTokens[index][0]
+                redefinedVar = useTokens[index][0]  # First variable is the redefined var
                 if redefinedVar.getType() == '':
                     continue
 
                 useTokens[index].remove(redefinedVar)
+                equalSignIndex = line.find('=')
 
-                if not useTokens[index]:
+                if not useTokens[index]:  # If there are no other vars used on this line, it is a single var redef
+                    # ----- INTEGER -----
                     if redefinedVar.getType() == 'int':
-                        equalSignIndex = line.find('=')
-                        print(line[equalSignIndex])
                         if line[equalSignIndex - 1] == '/':
                             if equalSignIndex - 2 >= 0:
                                 if line[equalSignIndex - 1] + line[equalSignIndex - 2] != '//':
@@ -557,15 +574,23 @@ class TCA:
                                     continue
 
                         checkLine = line[equalSignIndex + 1:]
-                        print(checkLine)
                         if not self.checkIfInteger(checkLine):
                             self.addErrorMessage(self.getNumLines()[index], ('TYPE ERROR: Integer Variable '
                                                                              + redefinedVar.getName() +
                                                                              ' is assigned a non integer value'
                                                                              ' on this line.'))
                             continue
+                    # --------------------
+                    # ------ STRING ------
+                    if redefinedVar.getType() == 'str':
+                        if line[equalSignIndex - 1] != '+':
+                            self.addErrorMessage(self.getNumLines()[index], "TYPE ERROR: String variable " +
+                                                 redefinedVar.getType() + " redefined using an invalid operator"
+                                                                          " for strings; Strings can only be added to"
+                                                                          " each other")  # TODO LAST MODIFIED
 
     def checkIfInteger(self, checkLine: str) -> bool:
+        # TODO Modify so that it checks for common functions and their return types (e.g. find(random.randint() etc.)
         skipNext = False
         for charIndex, character in enumerate(checkLine):
             if skipNext:
@@ -575,7 +600,7 @@ class TCA:
             if not (character in self.getIntegerCharacters()
                     or character in self.getIntegerOperators() or character == ' '):
                 if charIndex < len(checkLine) - 1:  # Checks if its not a 2 character operator (//)
-                    if (character + checkLine[charIndex]) not in self.getIntegerOperators():
+                    if (character + checkLine[charIndex + 1]) not in self.getIntegerOperators():
                         return False
                     else:
                         skipNext = True  # skip next character to avoid errors, (a // char was used)
@@ -584,10 +609,78 @@ class TCA:
                     return False
         return True
 
-    def checkVariableUsageOnLine(self, line: str, lineNo: int, variable: Tuple[str, str]):
-        pass # Checks if the variable was used correctly here
+    def checkIfString(self, checkLine: str) -> int:
+        apostrophes: int = 0
+        speechmarks: int = 0
+        for charIndex, character in enumerate(checkLine):
+            if character == "'":
+                if not self.checkForEscapeChar(checkLine, charIndex):
+                    apostrophes += 1
+                elif (apostrophes != 0 and apostrophes % 2 != 0) or (speechmarks != 0 and speechmarks % 2 != 0):
+                    continue  # Nothing to do here, the sign is inside a string so its valid
+                else:
+                    return 1  # This will never occur, because the \ sign would not be allowed by the last elif
+                    #           statement ( Might modify how this method works, so I will keep it if anything
+                    #           was to ever go wrong
+            elif character == '"':
+                if not self.checkForEscapeChar(checkLine, charIndex):
+                    speechmarks += 1
+                elif (apostrophes != 0 and apostrophes % 2 != 0) or (speechmarks != 0 and speechmarks % 2 != 0):
+                    continue  # Nothing to do here, the sign is inside a string so its valid
+                else:
+                    return 1
+            # If the character is inside a string literal, skip it
+            elif (apostrophes != 0 and apostrophes % 2 != 0) or (speechmarks != 0 and speechmarks % 2 != 0):
+                continue
+            # Check if non-string value
+            elif not (character == ' ' or character == '+'):
+                return 2
+        return 0
 
-    def checkIfString(self, line: str, signIndex: int) -> bool:
+    def checkIfFloat(self, checkLine: str) -> int:
+        decimalPointOcurred: bool = False
+        isAFloat: bool = False
+        currentlyNumber: bool = False
+        skipNext: bool = False
+        for index, character in enumerate(checkLine):
+            if skipNext:
+                skipNext = False
+                continue
+            if character in self.getIntegerCharacters():
+                currentlyNumber = True
+            elif character == '.':
+                # CAN ADD AN IF STATEMENT TO CHECK IF . OCCURRED BEFORE, TO ENSURE THERE ARE NO ERRORS,
+                # CURRENTLY ONLY CHECKS IF "FLOAT CHARACTERS" ARE USED
+                if currentlyNumber:
+                    decimalPointOcurred = True
+                    isAFloat = True
+
+            elif character == ' ':
+                decimalPointOcurred = False
+                currentlyNumber = False
+
+            elif character in self.getOperators():
+                decimalPointOcurred = False
+                currentlyNumber = False
+                if character == '/' and index < len(checkLine) - 1:
+                    if checkLine[index + 1] != '/':
+                        isAFloat = True  # If there was a non-Integer division, it isn't an integer
+                    else:
+                        skipNext = True
+
+            else:
+                return 1  # non FLOAT characters used
+
+        if isAFloat:
+            return 0  # only FLOAT characters used, let the interpreter do
+            #           the hard work of checking if they are in correct order
+        else:
+            return 2  # INTEGER characters used, but no FLOAT characters
+
+    def checkVariableUsageOnLine(self, line: str, lineNo: int, variable: Tuple[str, str]):
+        pass  # Checks if the variable was used correctly here
+
+    def checkIfInString(self, line: str, signIndex: int) -> bool:
         # This function checks if a particular part of code is within a string, or not (mainly used to check whether
         # an = sign is used in a string or not. It achieves that by counting how many ' or " are found on the right
         # of it, if it's odd, then it already knows that it must be in a string. If its even, it makes sure whether
@@ -596,34 +689,37 @@ class TCA:
         speechmarks: int = 0
         for i in range(signIndex, len(line)):
             if line[i] == '\'':
-                if not self.checkForEscapeChar(line, i-1):
+                if not self.checkForEscapeChar(line, i):
                     apostrophes += 1
             elif line[i] == '\"':
-                if not self.checkForEscapeChar(line, i-1):
+                if not self.checkForEscapeChar(line, i):
                     speechmarks += 1
-        if (speechmarks+apostrophes) % 2 != 0:
+        if (speechmarks + apostrophes) % 2 != 0:
             for i in range(0, signIndex):
                 if line[i] == '\'':
-                    if not self.checkForEscapeChar(line, i - 1):
+                    if not self.checkForEscapeChar(line, i):
                         apostrophes += 1
                 elif line[i] == '\"':
-                    if not self.checkForEscapeChar(line, i - 1):
+                    if not self.checkForEscapeChar(line, i):
                         speechmarks += 1
             if not speechmarks and not apostrophes:
                 return False
-            return (speechmarks+apostrophes) % 2 == 0
+            return (speechmarks + apostrophes) % 2 == 0
         elif not speechmarks and not apostrophes:
             return False
-        return (speechmarks+apostrophes) % 2 != 0
+        return (speechmarks + apostrophes) % 2 != 0
 
-    def checkForEscapeChar(self, line, index):   # Checks whether there is an escape character, or is it just a
-        # backslash
+    def checkForEscapeChar(self, line, index):  # Checks whether there is an escape character, or is it just a
+        # backslash before a character with an index -> index
         backslashes = 0
-        for i in range(index, -1, -1):
-            if line[i] == ' ':
-                break
+        if index == 0:
+            return False
+
+        for i in range(index - 1, -1, -1):
             if line[i] == '\\':
                 backslashes += 1
+            else:
+                break
         if backslashes == 0:
             return False
         return backslashes % 2 != 0
@@ -659,7 +755,7 @@ class TCA:
         elif thisScope.getScopeParent():  # otherwise, simply check if its in the scope above
             return self.checkVariableDefinition(variable, index, thisScope.getScopeParent())
 
-        else: # otherwise, it hasn't appeared in the scopes above and it has a type => is a correct variable def
+        else:  # otherwise, it hasn't appeared in the scopes above and it has a type => is a correct variable def
             return True
 
     def printErrors(self):
@@ -690,17 +786,30 @@ class TCA:
             'Identifying variables for TCA failed! - (name)',
         )
 
-        assert self.identifyVariable('myString:Tuple[str, int, ...] = \'#nice\'', 30, 1) == ('myString', 'Tuple[str,int,...]'), (
+        assert self.identifyVariable('myString:Tuple[str, int, ...] = \'#nice\'', 30, 1) == (
+            'myString', 'Tuple[str,int,...]'), (
             'Identifying variables for TCA failed! - (name and type)',)
 
         assert self.findVariableReferenceOnLine("ooga += 2 - 3*ooga", "ooga") == [0, 14], ("Finding variable "
-                                                                                                    "references on a "
-                                                                                                    "specific line "
+                                                                                           "references on a "
+                                                                                           "specific line "
 
-                                                                                                    "failed!",)
+                                                                                           "failed!",)
         assert self.findVariableReferenceOnLine("self._myString -= self._myString + str(ooga)",
                                                 "self._myString") == [0, 18], (
             " Finding variable references on a specific line failed!",)
 
         assert self.findVariableReferenceOnLine("thisVar >= smallVar", "smallVar") == [11], (
             "Finding variable references on a specific line for a comparison failed!",)
+
+        assert self.checkIfInteger("-5 + 2 // 3"), ("Checking if only integer-like operators"
+                                                    " and chars used failed!",)
+
+        assert not self.checkIfInteger('-5/2'), ("Checking if only integer-like operators and chars used failed!",)
+
+        assert self.checkIfString('\'my * 2 string\' + \'string\\') == 0, ("Checking if only string-like operators and "
+                                                                           "chars used failed!",)
+
+        assert not self.checkForEscapeChar('\\\\se\'', 2), ("Checking for Escape Character failed!",)
+
+        assert self.checkIfInString('\'au\'', 1), ("Checking if character with index i is in a string failed!",)

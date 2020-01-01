@@ -64,5 +64,34 @@ while j:
 
 print(j)
 '''
+# TODO TCA error check reference below:
+'''
 s: str = \'
 print(s)
+
+  File "C:/Users/Szymon/PycharmProjects/ShymIDE/programs/test1.py", line 67
+    s: str = \'
+              ^
+SyntaxError: unexpected character after line continuation character
+
+'''
+'''
+s = 'baba'
+def wow():
+    b = s + 'a'
+    print(b)
+
+
+wow()
+'''
+'''
+a: int = 0
+print(a, type(a))
+a = 5 - 0*(2/4)
+print(a, type(a))
+myTuple = ('//', '+')
+print('/' in myTuple)
+
+d = 'ah \ #'
+print(d)
+'''

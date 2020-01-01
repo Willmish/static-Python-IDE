@@ -30,11 +30,11 @@ class Model:
         # self._tca.findVariables(self._lines, self._numLines)
         self._tca.findVariablesReference(self._lines, self._numLines, self._tca.getScopes())
 
+        self._tca.checkVariablesUsage()
         a = self._tca.getTokens()
         b = self._tca.getLines()
         c = self._tca.getVariableUseToken()
         for i in range(len(a)):
             print(a[i], [str(item) for item in c[i]], b[i])
 
-        self._tca.checkVariablesUsage()
         self._tca.printErrors()

@@ -5,7 +5,7 @@ from typing import List
 d: int = 2
 d -= 42
 d = essa
-d = 2
+d = 2 / 5
 d /= 8 - 2
 d //= 9
 # Im a comment!!!
@@ -25,7 +25,7 @@ bigVar=
 def newFunction():
     a: int = 2-1
     return a # Delete me!
-    testVar: str = 'ahoy m8'
+    testVar: str = 'hey, I am a string@!'\'
     if a <= 1:
         xs: List[int] = [1,2,3]
         print('hi')
@@ -37,39 +37,3 @@ helloWorld()
 print("goodbye")
 
 # aHOY!
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
