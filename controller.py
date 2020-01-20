@@ -1,4 +1,5 @@
 from typing import List
+
 from model import Model
 from view import View
 
@@ -10,6 +11,8 @@ class Controller:
 
     def runTCA(self, lines: List[str]):
         self._model.runTCA(lines)
+        errors: List[str] = self._model._tca.getErrorMessages()
+        self._view.addErrors(errors)
 
 
 if __name__ == '__main__':
@@ -19,6 +22,7 @@ if __name__ == '__main__':
     
     controller._view.createGUI()
     controller._view.openFileByName('programs/testFile')
+    print(controller._view._scroll.index("@0,0"))
     controller._view.mainLoop()
 
 

@@ -26,13 +26,20 @@ class TextLineNumbers(tk.Canvas):
             self.create_text(2,y,anchor="nw", text=linenum)
             i = self.textwidget.index("%s+1line" % i)
 
+
+class ScrollText:
+    def __init__(self, *args, **kwargs):
+        tk.Text.__init__(*args, **kwargs)
+
+
 class View:
     def __init__(self, controller):
         self._root: tk.Tk = tk.Tk()
         self._scroll: tkst.ScrolledText = None
         #self._frame = tk.Frame(self._root)
-        #self.lineNo: TextLineNumbers = None
+        self.lineNo: TextLineNumbers = None
         self.controller = controller
+        self._errorMessages: tkst.ScrolledText = None
 
     def runTCA(self) -> None:
         print("TCA running!")
@@ -98,13 +105,22 @@ class View:
         openButton.pack(side=tk.TOP)
         # Create the text editor:
         self._scroll = tkst.ScrolledText(self._root, bg='black', foreground="white",
-                                         insertbackground='white', selectbackground="blue", width=180, height=40)
+                                         insertbackground='white', selectbackground="blue", width=120, height=30)
+        self._errorMessages = tkst.ScrolledText(self._root, width=130, height=10, state="disabled")
         #self.lineNo = TextLineNumbers(self._scroll.frame)
-       # self.lineNo.attach(self._scroll)
-        #self.lineNo.pack()
+        # self.lineNo.attach(self._scroll)
+        self._errorMessages.pack(side=tk.BOTTOM)
         self._scroll.pack(side=tk.BOTTOM)
+        #self.lineNo.pack()
         # change tab to n spaces
         self._scroll.bind("<Tab>", self.tab)
+
+    def addErrors(self, errors: List[str]):
+        self._errorMessages['state'] = 'normal'
+        self._errorMessages.delete("1.0", tk.END)
+        for error in errors:
+            self._errorMessages.insert(tk.END, error + '\n')
+        self._errorMessages['state'] = 'disabled'
 
     def mainLoop(self):
         self._root.mainloop()

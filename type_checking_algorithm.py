@@ -483,48 +483,64 @@ class TCA:
                     continue
 
                 useTokens[index].remove(definedVar)
-                checkLine = line[line.find('=') + 1:]
-                if not useTokens[index]:  # Run single variable checking here
+                # if not useTokens[index]:  # Run single variable checking here
+                checkLine = line
+                # -----INTEGERS-----
+                if definedVar.getType() == 'int':
+                    checkTuple = self.checkIfAllVarsOfType('int', useTokens[index], line)
+                    if checkTuple[0]:
+                        print(self.getNumLines()[index], " All vars same type")
+                        checkLine = checkTuple[1]
+                        checkLine = self.removeAllVarsInLine(useTokens[index], checkLine)
+                        # remove all occurrences of the var in the line ^
+                    else:
+                        print(self.getNumLines()[index], " Not All vars same type")
+                        self.addErrorMessage(self.getNumLines()[index], 'TYPE ERROR: Integer Variable '
+                                             + definedVar.getName() + ' was assigned a non integer value on this line. '
+                                                                      '(A variable of different type was used. maybe us'
+                                                                      'e a conversion function int() ?)')
+                        continue
 
-                    # -----INTEGERS-----
-                    if definedVar.getType() == 'int':
-                        print(checkLine)
-                        if not self.checkIfInteger(checkLine):
-                            self.addErrorMessage(self.getNumLines()[index],
-                                                 ('TYPE ERROR: Integer Variable ' + definedVar.getName() +
-                                                  ' was assigned a non integer value on this line.'))
-                    # ------------------
-                    # -----STRINGS------
-                    # TODO CHECK WHAT OPERATION CAN BE CARRIED OUT ON STRINGS
-                    elif definedVar.getType() == 'str':
-                        checkVal = self.checkIfString(checkLine)
-                        if checkVal == 0:
-                            continue
-                        elif checkVal == 1:
-                            self.addErrorMessage(self.getNumLines()[index], 'Unexpected character '
-                                                                            'after line continuation character'
-                                                                            ' (backslash) ')
-                        else:
-                            self.addErrorMessage(self.getNumLines()[index], 'TYPE ERROR: string '
-                                                                            'variable ' + definedVar.getName() +
-                                                 ' was assigned a non string value on '
-                                                 'this line.')
-                    # ------------------
-                    # -----FLOATS-------
-                    elif definedVar.getType() == 'float':
-                        checkVal = self.checkIfFloat(checkLine)
-                        if checkVal == 0:
-                            continue
-                        elif checkVal == 1:
-                            self.addErrorMessage(self.getNumLines()[index], 'TYPE ERROR: Float '
-                                                                            'variable ' + definedVar.getType() +
-                                                 ' was assigned a non Float value on this line.')
-                        elif checkVal == 2:
-                            self.addErrorMessage(self.getNumLines()[index], 'TYPE ERROR: Float variable ' +
-                                                 definedVar.getType() + ' was assigned a non Float value on this line; '
-                                                                        'Only integers appeared (Perhaps use a single /'
-                                                                        ' division or add a decimal point')
-                    # ------------------
+                    checkLine = checkLine[checkLine.find('=') + 1:]
+                    print(checkLine)
+                    if not self.checkIfInteger(checkLine):
+                        self.addErrorMessage(self.getNumLines()[index],
+                                             ('TYPE ERROR: Integer Variable ' + definedVar.getName() +
+                                              ' was assigned a non integer value on this line.'))
+                # ------------------
+                # -----STRINGS------
+                # TODO CHECK WHAT OPERATION CAN BE CARRIED OUT ON STRINGS
+                elif definedVar.getType() == 'str':
+                    checkLine = line[line.find('=') + 1:]
+                    checkVal = self.checkIfString(checkLine)
+                    if checkVal == 0:
+                        continue
+                    elif checkVal == 1:
+                        self.addErrorMessage(self.getNumLines()[index], 'Unexpected character '
+                                                                        'after line continuation character'
+                                                                        ' (backslash) ')
+                    else:
+                        self.addErrorMessage(self.getNumLines()[index], 'TYPE ERROR: string '
+                                                                        'variable ' + definedVar.getName() +
+                                             ' was assigned a non string value on '
+                                             'this line.')
+                # ------------------
+                # -----FLOATS-------
+                elif definedVar.getType() == 'float':
+                    checkLine = line[line.find('=') + 1:]
+                    checkVal = self.checkIfFloat(checkLine)
+                    if checkVal == 0:
+                        continue
+                    elif checkVal == 1:
+                        self.addErrorMessage(self.getNumLines()[index], 'TYPE ERROR: Float '
+                                                                        'variable ' + definedVar.getType() +
+                                             ' was assigned a non Float value on this line.')
+                    elif checkVal == 2:
+                        self.addErrorMessage(self.getNumLines()[index], 'TYPE ERROR: Float variable ' +
+                                             definedVar.getType() + ' was assigned a non Float value on this line; '
+                                                                    'Only integers appeared (Perhaps use a single /'
+                                                                    ' division or add a decimal point')
+                # ------------------
                 else:
                     pass  # Run multi-var checking here
 
@@ -554,6 +570,7 @@ class TCA:
             #        # -----------------
 
             elif 'v' in self.getTokens()[index]:  # It is a redefinition
+                print(line)
                 redefinedVar = useTokens[index][0]  # First variable is the redefined var
                 if redefinedVar.getType() == '':
                     continue
@@ -569,7 +586,7 @@ class TCA:
                                 if line[equalSignIndex - 1] + line[equalSignIndex - 2] != '//':
                                     self.addErrorMessage(self.getNumLines()[index], 'Type ERROR: Integer Variable '
                                                          + redefinedVar.getName()
-                                                         + ' is reassigned using a non Integer operator '
+                                                         + ' was reassigned using a non Integer operator '
                                                            '(Non-Integer Division / )')
                                     continue
 
@@ -577,7 +594,7 @@ class TCA:
                         if not self.checkIfInteger(checkLine):
                             self.addErrorMessage(self.getNumLines()[index], ('TYPE ERROR: Integer Variable '
                                                                              + redefinedVar.getName() +
-                                                                             ' is assigned a non integer value'
+                                                                             ' was assigned a non integer value'
                                                                              ' on this line.'))
                             continue
                     # --------------------
@@ -587,7 +604,58 @@ class TCA:
                             self.addErrorMessage(self.getNumLines()[index], "TYPE ERROR: String variable " +
                                                  redefinedVar.getType() + " redefined using an invalid operator"
                                                                           " for strings; Strings can only be added to"
-                                                                          " each other")  # TODO LAST MODIFIED
+                                                                          " each other")
+                        else:
+                            checkLine = line[equalSignIndex + 1:]
+                            checkVal = self.checkIfString(checkLine)
+                            if checkVal == 0:
+                                continue
+                            elif checkVal == 1:
+                                self.addErrorMessage(self.getNumLines()[index], 'Unexpected character '
+                                                                                'after line continuation character'
+                                                                                ' (backslash) ')
+                            else:
+                                self.addErrorMessage(self.getNumLines()[index], 'TYPE ERROR: string '
+                                                                                'variable ' + redefinedVar.getName() +
+                                                     ' was assigned a non string value on '
+                                                     'this line.')
+                    # --------------------
+                    # ------ FLOATS ------
+                    if redefinedVar.getType() == 'float':
+                        ...
+
+                else:
+                    pass  # Multi-var checking here
+
+    def removeAllVarsInLine(self, vars: List[Variable], codeLine: str) -> str:
+        deletedChars = 0  # TODO MAKE SURE IT REMOVES THE int( ) before and after part, maybe do it in the funct below and pop from the list
+        for var in vars:
+            varStart = var.getIndex() - deletedChars
+            varEnd = var.getIndex() + len(var.getName()) - deletedChars
+            codeLine = codeLine[:varStart] + codeLine[varEnd:]
+            print(codeLine)
+            deletedChars += len(var.getName())
+        return codeLine
+
+    def checkIfAllVarsOfType(self, type: str, vars: List[Variable], codeLine: str) -> (bool, str):
+        newCodeLine = codeLine[:]
+        for var in vars:
+            if var.getType() != type:
+                # check if there isn;t a conversion function before
+                funStart = var.getIndex() - len(type) - 1
+                funEnd = var.getIndex() - 1
+                if funStart < 0:
+                    return False, newCodeLine
+                if codeLine[funStart:funEnd] == type:
+                    # Removes the conversion function along with the reference for further checking
+                    endRef = funEnd + len(var.getName()) + 2  # take the () into account
+                    newCodeLine = codeLine[:funStart] + ' ' * len(codeLine[funStart:endRef]) + codeLine[
+                                                                                               endRef:]  # TODO FINISH
+                    vars.remove(var)
+                    print("Length before and after removing conversion func: ", len(codeLine), len(newCodeLine))
+                    continue
+                return False, newCodeLine
+        return True, newCodeLine
 
     def checkIfInteger(self, checkLine: str) -> bool:
         # TODO Modify so that it checks for common functions and their return types (e.g. find(random.randint() etc.)
@@ -793,8 +861,8 @@ class TCA:
         assert self.findVariableReferenceOnLine("ooga += 2 - 3*ooga", "ooga") == [0, 14], ("Finding variable "
                                                                                            "references on a "
                                                                                            "specific line "
-
                                                                                            "failed!",)
+
         assert self.findVariableReferenceOnLine("self._myString -= self._myString + str(ooga)",
                                                 "self._myString") == [0, 18], (
             " Finding variable references on a specific line failed!",)
@@ -809,6 +877,12 @@ class TCA:
 
         assert self.checkIfString('\'my * 2 string\' + \'string\\') == 0, ("Checking if only string-like operators and "
                                                                            "chars used failed!",)
+
+        assert self.checkIfFloat('23 - 4//6') == 2, ("Checking if only float-like operators and chars used failed!",)
+
+        assert self.checkIfFloat('5/2 -1') == 0, ("Checking if only float-like operators and chars used failed!",)
+
+        assert self.checkIfFloat('2-d') == 1, ("Checking if only float-like operators and chars used failed!",)
 
         assert not self.checkForEscapeChar('\\\\se\'', 2), ("Checking for Escape Character failed!",)
 
