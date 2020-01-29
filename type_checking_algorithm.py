@@ -224,10 +224,12 @@ class TCA:
 
     def setInitialFuncReturnTypes(self) -> None:
         # TODO FINISH INIT RETURN TYPES (Might need to add an option for parameters
-        f = open("functions.txt")
+        f = open("functions")
         for line in f:
             newL = line.split()
             self._funcReturnTypes[newL[0]] = newL[1]
+
+        f.close()
 
     def setLines(self, lines: List[str]):
         self._lines = lines
