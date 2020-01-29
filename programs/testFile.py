@@ -30,6 +30,7 @@ def newFunction():
     testVar: str = 'hey, I am a string@!'\'
     if a <= 1:
         xs: List[int] = [1,2,3]
+        xs[0] = 1
         print('hi')
 
 bigVar: str = 'hh'
@@ -39,4 +40,5 @@ helloWorld()
 print("goodbye")
 
 # aHOY!
+
 

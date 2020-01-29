@@ -1,4 +1,4 @@
-from typing import Tuple
+from typing import List, Dict
 '''
 a: str = 'hi'
 print(type(a))
@@ -97,5 +97,12 @@ d = 'ah \ #'
 print(d)
 '''
 
-a: Tuple[str, int, ...] = ()
-print(type(a))
+b: Dict[str, int] = {'ahoy': 2}
+b['ahoy'] += 2
+print(b)
+
+# myT: Tuple[str, int] = ('a', 1)
+# myT[1] += 2
+
+myList: List[int] = [1, 2]
+myList -= [1]
