@@ -1,3 +1,4 @@
+from typing import Tuple
 '''
 a: str = 'hi'
 print(type(a))
@@ -95,3 +96,6 @@ print('/' in myTuple)
 d = 'ah \ #'
 print(d)
 '''
+
+a: Tuple[str, int, ...] = ()
+print(type(a))

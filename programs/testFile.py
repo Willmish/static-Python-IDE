@@ -1,4 +1,5 @@
 ahoy: bool = True
+ABO: str = 2
 if c == '=':
     print("c is an equal sign!")
 from typing import List
@@ -8,6 +9,7 @@ d = essa
 d = 2 / 5
 d /= 8 - 2
 d //= 9
+ABO = 2
 # Im a comment!!!
 def helloWorld(): # Hi there
     d = 'halo \# salut'
@@ -37,3 +39,4 @@ helloWorld()
 print("goodbye")
 
 # aHOY!
+

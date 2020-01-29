@@ -3,6 +3,9 @@ from typing import List, Dict, Tuple
 from DataStructures import Stack
 
 
+# TODO IDEA FOR A FEATURE: ALLOW THE USER TO ADD NEW FUNCTIONS TO BE ACCEPTED BY THE TCA WITH CERTAIN RETURN TYPES ETC.
+# TODO USE THE ALREADY DEFINED METHODS AND THEIR RETURN TYPES
+# TODO ADD LIST, DICT, AND TUPLE TOKENS, MODIFY THE Variable CLASS AND ADD LIST ATTRIBUTES, ETC.
 # TODO ANALYSE THE CASE WHAT HAPPENS IF THERE IS A VAR with just an = sign (e.g. bigVar= )
 # TODO NOTE: VARIABLES IN SCOPES ABOVE CAN BE ACCESSED BUT NOT MODIFIED WITHOUT GLOBAL KEYWORD
 # TODO RETHINK THE ERROR PRINTING METHOD, MAYBE ADD AN OPTION FOR POINTING THE ERROR DIRECTLY (LOOK test1.py for an example)
@@ -101,6 +104,52 @@ class Variable:
         return self.getName() + ';' + self.getType() + ';' + str(self.getIndex()) + ';'
 
 
+class ListVariable(Variable):
+    def __init__(self, variableName: str, listType: str, indexOnLine: int):
+        super().__init__(variableName, listType, indexOnLine)
+
+
+class DictionaryVariable(Variable):
+    def __init__(self, variableName: str, keyType: str, valueType: str, indexOnLine: int):
+        super().__init__(variableName, keyType, indexOnLine)
+        self._valueType = valueType
+
+    def getValueType(self) -> str:
+        return self._valueType
+
+    def __str__(self) -> str:
+        return self.getName() + ';' + self.getType() + ';' + self.getValueType() + ';' + str(self.getIndex()) + ';'
+
+
+class TupleVariable(Variable):
+    def __init__(self, variableName: str, variableTypes: List[str], indexOnLine: int):
+        if len(variableTypes) == 2:
+            if variableTypes[1] == '...':
+                super().__init__(variableName, variableTypes[0], indexOnLine)
+                self._variableTypes = []
+            else:
+                super().__init__(variableName, '', indexOnLine)
+                self._variableTypes = variableTypes
+
+    def getType(self) -> List[str]:
+        if self._variableTypes:
+            return self._variableTypes
+
+        else:
+            return list(self._type)
+
+    def getTypeOfIndex(self, index: int) -> str:
+        if self._variableTypes:
+            return self.getType()[index]
+
+        else:
+            return ''
+
+    def __str__(self) -> str:
+        if self._variableTypes:
+            return self.getName() + ';' + str(self.getType()) + ';' + str(self.getIndex()) + ';'
+
+
 class TCA:
     def __init__(self):
         # List of all scopes, each scope points to their parent
@@ -109,6 +158,7 @@ class TCA:
         self._tokens: List[str] = []  # Keeps track of all INDENT and DEDENT tokens and other tokens
         # token list: i indent token, d dedent token, c comparison token, f definition token, v var redefinition with an
         # operator token followed by var name and ; sign indicating end of var name, r variable reassignment
+        # l list use token, t tuple use token, s dictionary use token
         self._variableUseTokens: List[
             List[Variable]] = []  # This list keeps track of all variable usage in this format:
         # index i: VariableName;VariableType;Variable2Name;Variable2Type;
@@ -120,6 +170,8 @@ class TCA:
         self._linesChecked: List[bool] = []
         self._lines: List[str] = []
         self._numLines: List[int] = []
+        self._funcReturnTypes: Dict[str, str] = {}
+        self.setInitialFuncReturnTypes()
 
     # Getters and setters for TCA
     def getScopes(self) -> Scope:
@@ -161,11 +213,21 @@ class TCA:
     def addVariableUseToken(self, lineIndex: int, varIndex: int, variableName: str, variableType: str):
         self._variableUseTokens[lineIndex].append(Variable(variableName, variableType, varIndex))
 
+    def addListVariableUseToken(self, lineIndex: int, varIndex: int, listName: str, listType: str) -> None:
+        self._variableUseTokens[lineIndex].append(ListVariable())
+
     def setInitialLinesChecked(self, lenLines: int):
         self._linesChecked = [False for i in range(lenLines)]
 
     def setInitialVariableUseTokens(self, lengthOfFile: int):
         self._variableUseTokens = [[] for _ in range(lengthOfFile)]
+
+    def setInitialFuncReturnTypes(self) -> None:
+        # TODO FINISH INIT RETURN TYPES (Might need to add an option for parameters
+        f = open("functions.txt")
+        for line in f:
+            newL = line.split()
+            self._funcReturnTypes[newL[0]] = newL[1]
 
     def setLines(self, lines: List[str]):
         self._lines = lines
@@ -245,7 +307,6 @@ class TCA:
         self.setInitialVariableUseTokens(len(lines))
         currentScope = self._scopes
         self._scopes.setScopeEnding(len(lines) - 1)
-        # TODO sort all scopes according to their indentation, FIX
         #  use: https://docs.python.org/3/reference/lexical_analysis.html#indentation
         # create a stack to keep track of INDENT/DEDENT Tokens
         indents: Stack = Stack(len(lines) + 1)  # The '+1' is required because there is a 0 at the start
@@ -463,6 +524,10 @@ class TCA:
         self.setVariableUseTokens(newList)
 
     def checkVariablesUsage(self):  # TODO finish it!!
+        # TODO Booleans, ensuring the homogeneity of lists and dictionaries' keys and values
+        # TODO VARIABLES IN CAPS ARE CONSTANTS
+        # TODO ALLOWS HETEROGENEITY OF TUPLES
+        # TODO ENSURE PARAMETERS ARE TYPED, AND ALL FUNCT HAVE A RETURN TYPE
         self.sortVariableUseTokens()
         # for i in self.getVariableUseToken():
         #    print(i)
@@ -481,6 +546,16 @@ class TCA:
                 definedVar = useTokens[index][0]
                 if definedVar.getType() == '':
                     continue
+
+                if 'r' in useTypeTokens[index]:
+                    # ---- CHECK IF IT IS A CONSTANT -----
+                    if definedVar.getName().isupper():
+                        # it is a constant
+                        self.addErrorMessage(self.getNumLines()[index],
+                                             "The constant variable " + definedVar.getName()
+                                             + " cannot change its value. (Constant variables are defined with all "
+                                               "uppercase chars)")
+                        continue
 
                 useTokens[index].remove(definedVar)
                 # if not useTokens[index]:  # Run single variable checking here
@@ -511,7 +586,22 @@ class TCA:
                 # -----STRINGS------
                 # TODO CHECK WHAT OPERATION CAN BE CARRIED OUT ON STRINGS
                 elif definedVar.getType() == 'str':
-                    checkLine = line[line.find('=') + 1:]
+                    # ENSURES OTHER VARS APPEARING ON THIS LINE ARE OF THE SAME TYPE/CONVERTED TO THIS TYPE
+                    checkTuple = self.checkIfAllVarsOfType('str', useTokens[index], line)
+                    if checkTuple[0]:
+                        print(self.getNumLines()[index], " All vars same type")
+                        checkLine = checkTuple[1]
+                        checkLine = self.removeAllVarsInLine(useTokens[index], checkLine)
+                        # remove all occurrences of the var in the line ^
+                    else:
+                        print(self.getNumLines()[index], " Not All vars same type")
+                        self.addErrorMessage(self.getNumLines()[index], 'TYPE ERROR: String Variable '
+                                             + definedVar.getName() + ' was assigned a non integer value on this line. '
+                                                                      '(A variable of different type was used. maybe us'
+                                                                      'e a conversion function str() ?)')
+                        continue
+
+                    checkLine = checkLine[checkLine.find('=') + 1:]
                     checkVal = self.checkIfString(checkLine)
                     if checkVal == 0:
                         continue
@@ -541,6 +631,8 @@ class TCA:
                                                                     'Only integers appeared (Perhaps use a single /'
                                                                     ' division or add a decimal point')
                 # ------------------
+                elif definedVar.getType() == 'bool':
+                    pass
                 else:
                     pass  # Run multi-var checking here
 
@@ -574,7 +666,13 @@ class TCA:
                 redefinedVar = useTokens[index][0]  # First variable is the redefined var
                 if redefinedVar.getType() == '':
                     continue
-
+                # ---- CHECK IF IT IS A CONSTANT -----
+                if redefinedVar.getName().isupper():
+                    # it is a constant
+                    self.addErrorMessage(self.getNumLines()[index], "The constant variable " + redefinedVar.getName()
+                                         + " cannot change its value. (Constant variables are defined with all "
+                                           "uppercase chars)")
+                    continue
                 useTokens[index].remove(redefinedVar)
                 equalSignIndex = line.find('=')
 
@@ -584,7 +682,7 @@ class TCA:
                         if line[equalSignIndex - 1] == '/':
                             if equalSignIndex - 2 >= 0:
                                 if line[equalSignIndex - 1] + line[equalSignIndex - 2] != '//':
-                                    self.addErrorMessage(self.getNumLines()[index], 'Type ERROR: Integer Variable '
+                                    self.addErrorMessage(self.getNumLines()[index], 'TYPE ERROR: Integer Variable '
                                                          + redefinedVar.getName()
                                                          + ' was reassigned using a non Integer operator '
                                                            '(Non-Integer Division / )')
@@ -599,7 +697,7 @@ class TCA:
                             continue
                     # --------------------
                     # ------ STRING ------
-                    if redefinedVar.getType() == 'str':
+                    elif redefinedVar.getType() == 'str':
                         if line[equalSignIndex - 1] != '+':
                             self.addErrorMessage(self.getNumLines()[index], "TYPE ERROR: String variable " +
                                                  redefinedVar.getType() + " redefined using an invalid operator"
@@ -621,7 +719,7 @@ class TCA:
                                                      'this line.')
                     # --------------------
                     # ------ FLOATS ------
-                    if redefinedVar.getType() == 'float':
+                    elif redefinedVar.getType() == 'float':
                         ...
 
                 else:
@@ -752,7 +850,7 @@ class TCA:
         # This function checks if a particular part of code is within a string, or not (mainly used to check whether
         # an = sign is used in a string or not. It achieves that by counting how many ' or " are found on the right
         # of it, if it's odd, then it already knows that it must be in a string. If its even, it makes sure whether
-        #  there is an even number of those signs on the left as well
+        #  there is an even number of those signs on the left as well TODO check all cases work
         apostrophes: int = 0
         speechmarks: int = 0
         for i in range(signIndex, len(line)):
