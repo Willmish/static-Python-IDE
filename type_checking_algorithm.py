@@ -254,24 +254,28 @@ class TCA:
         self._errors = []
 
     def handleSpecialVarAdding(self, variableName: str, variableType: str, variableIndex: int, lineIndex: int) -> None:
-        if 'List' in variableType:
+        if 'List' in variableType[:4]:
             newVarType = variableType[len('List') + 1:-1]
             self.addListVariableUseToken(lineIndex, variableIndex, variableName, newVarType)
 
-        elif 'Dict' in variableType:
+        elif 'Dict' in variableType[:4]:
             # Split the type of dict into the key type and the value type
-            listType = variableType[variableType.find('['):].split(',')
+            listType = variableType[variableType.find('[') + 1:].split(',')
+            listType[-1] = listType[-1][:len(listType[-1]) - 1]
             variableKeyType = ''
             variableValueType = ''
             if len(listType) == 2:
                 for char in listType[0]:
-                    if self.isAnAllowedCharacterInVarName(char):
+                    if char != ' ':
                         variableKeyType += char
 
                 for char in listType[1]:
-                    if self.isAnAllowedCharacterInVarName(char):
+                    if char != ' ':
                         variableValueType += char
             self.addDictVariableUseToken(lineIndex, variableIndex, variableName, variableKeyType, variableValueType)
+
+        elif 'Tuple' in variableType[:5]:
+            ...
         # TODO ADD FOR TUPLE AND DICT
 
     def removeLastToken(self, index: int):
@@ -578,7 +582,11 @@ class TCA:
                 if self.checkIfSpecialVariable(var, currentScope.getScopeVariableTypeByKey(var), i):
                     for newReferenceIndex in varRef:
                         # IF ITS NOT AN ITEM DEF / REDEFINITION, ADD A LIST/DICT/TUPLE USE TOKEN
-                        if self.getLines()[i][newReferenceIndex + len(var)] != '[':
+                        if newReferenceIndex + len(var) >= len(
+                                self.getLines()[i]):  # CHECK IF NOT AT THE END OF THE LINE
+                            self.addSpecialVariableRef(var, currentScope.getScopeVariableTypeByKey(var), i)
+
+                        elif self.getLines()[i][newReferenceIndex + len(var)] != '[':
                             self.addSpecialVariableRef(var, currentScope.getScopeVariableTypeByKey(var), i)
 
                         self.handleSpecialVarAdding(var, currentScope.getScopeVariableTypeByKey(var), newReferenceIndex,
@@ -682,16 +690,50 @@ class TCA:
                 # if not useTokens[index]:  # Run single variable checking here
                 checkLine = line
 
+                # -----  LIST  -----
+                if 'l' in useTypeTokens[index]:  # List definition/redefinition
+                    listType = definedVar.getType()
+                    checkTuple = self.checkIfAllVarsOfType(listType, useTokens[index], line)
+                    if checkTuple[0]:
+                        print(self.getNumLines()[index], " All vars same type")
+                        checkLine = checkTuple[1]
+                        checkLine = self.removeAllVarsInLine(useTokens[index], checkLine)
+                        # remove all occurrences of the var in the line ^
+                    else:
+                        print(self.getNumLines()[index], " Not All vars same type")
+
+                        self.addErrorMessage(self.getNumLines()[index], 'TYPE ERROR: ' + errorMsgReference + ' '
+                                             + definedVar.getName() + ' was assigned a non ' + listType + ' value on '
+                                                                                                          'this line. '
+                                                                                                          '(A variable of different type was used.')
+                        continue
+                    checkLine = checkLine[checkLine.find('=') + 1:]
+                    checkVal = self.checkIfListOfType(checkLine, listType)
+                    if checkVal == 0:
+                        continue
+                    elif checkVal == 1:
+                        self.addErrorMessage(self.getNumLines()[index], 'TYPE ERROR: List ' + definedVar.getName() +
+                                             ' was assigned a non list value on this line.')
+                        continue
+                    elif checkVal == 2:
+                        self.addErrorMessage(self.getNumLines()[index], 'TYPE ERROR: List ' + definedVar.getName() +
+                                             ' is not homogeneous (not all elements in the list are of type  '
+                                             + listType + ')')
+                        continue
+                    pass  # TODO FINISH HERE
+                # ------------------
+                # -----  DICT  -----
+                elif 's' in useTypeTokens[index]:  # Dictionary definition/redefinition
+                    pass
+                # ------------------
+                # ----- TUPLES -----
+                elif 't' in useTypeTokens[index]:
+                    pass
+                # ------------------
                 # -----INTEGERS-----
                 if definedVar.getType() == 'int':
                     # TODO IMPORTANT, MAKE SURE THAT LIST VAR IF REFERENCE TO THE WHOLE LIST CHECKED SEPERATELY AS A LIST
                     # TODO CHECK WHAT ACTION CAN BE PERFORMED ON LIST/DICT/TUPLE ETC
-                    if 'l' in useTypeTokens[index]:  # List definition/redefinition
-                        pass  # TODO FINISH HERE
-                    elif 's' in useTypeTokens[index]:  # Dictionary definition/redefinition
-                        pass
-                    elif 't' in useTypeTokens[index]:
-                        pass
                     checkTuple = self.checkIfAllVarsOfType('int', useTokens[index], line)
                     if checkTuple[0]:
                         print(self.getNumLines()[index], " All vars same type")
@@ -726,7 +768,7 @@ class TCA:
                     else:
                         print(self.getNumLines()[index], " Not All vars same type")
                         self.addErrorMessage(self.getNumLines()[index], 'TYPE ERROR: ' + errorMsgReference + ' '
-                                             + definedVar.getName() + ' was assigned a non integer value on this line. '
+                                             + definedVar.getName() + ' was assigned a non string value on this line. '
                                                                       '(A variable of different type was used. maybe us'
                                                                       'e a conversion function str() ?)')
                         continue
@@ -745,16 +787,30 @@ class TCA:
                 # ------------------
                 # -----FLOATS-------
                 elif definedVar.getType() == 'float':
-                    checkLine = line[line.find('=') + 1:]
+                    checkTuple = self.checkIfAllVarsOfType('float', useTokens[index], line)
+                    if checkTuple[0]:
+                        print(self.getNumLines()[index], " All vars same type")
+                        checkLine = checkTuple[1]
+                        checkLine = self.removeAllVarsInLine(useTokens[index], checkLine)
+                        # remove all occurrences of the var in the line ^
+                    else:
+                        print(self.getNumLines()[index], " Not All vars same type")
+                        self.addErrorMessage(self.getNumLines()[index], 'TYPE ERROR: ' + errorMsgReference + ' '
+                                             + definedVar.getName() + ' was assigned a non float value on this line. '
+                                                                      '(A variable of different type was used. maybe us'
+                                                                      'e a conversion function float() ?)')
+                        continue
+
+                    checkLine = checkLine[checkLine.find('=') + 1:]
                     checkVal = self.checkIfFloat(checkLine)
                     if checkVal == 0:
                         continue
                     elif checkVal == 1:
                         self.addErrorMessage(self.getNumLines()[index], 'TYPE ERROR: ' + errorMsgReference + ' '
-                                             + definedVar.getType() + ' was assigned a non Float value on this line.')
+                                             + definedVar.getName() + ' was assigned a non Float value on this line.')
                     elif checkVal == 2:
                         self.addErrorMessage(self.getNumLines()[index], 'TYPE ERROR: ' + errorMsgReference + ' ' +
-                                             definedVar.getType() + ' was assigned a non Float value on this line; '
+                                             definedVar.getName() + ' was assigned a non Float value on this line; '
                                                                     'Only integers appeared (Perhaps use a single /'
                                                                     ' division or add a decimal point')
                 # ------------------
@@ -817,85 +873,130 @@ class TCA:
                 useTokens[index].remove(redefinedVar)
                 equalSignIndex = line.find('=')
 
-                if not useTokens[index]:  # If there are no other vars used on this line, it is a single var redef
-                    # ----- INTEGER -----
-                    if redefinedVar.getType() == 'int':
-                        if 'l' in useTypeTokens[index]:  # List redefinition
-                            if line[equalSignIndex - 1] != '+':
-                                self.addErrorMessage(self.getNumLines()[index], "TYPE ERROR: Lists can only be "
-                                                                                "added together (other standard "
-                                                                                "operations are not supported)")
-                                continue
-                        elif 's' in useTypeTokens[index]:  # Dictionary redefinition
-                            pass
-                        elif 't' in useTypeTokens[index]:
-                            self.addErrorMessage(self.getNumLines()[index], "Tuple objects do not support item "
-                                                                            "assignment. (Tuples are immutable, their "
-                                                                            "items cannot be modified after creation)")
-                            continue
-                        if line[equalSignIndex - 1] == '/':
-                            if equalSignIndex - 2 >= 0:
-                                if line[equalSignIndex - 1] + line[equalSignIndex - 2] != '//':
-                                    self.addErrorMessage(self.getNumLines()[index], 'TYPE ERROR: ' + errorMsgReference
-                                                         + ' ' + redefinedVar.getName()
-                                                         + ' was reassigned using a non Integer operator '
-                                                           '(Non-Integer Division / )')
-                                    continue
+                # ----- INTEGER -----
+                if redefinedVar.getType() == 'int':
+                    # CHECK OTHER VARIABLES:
+                    checkTuple = self.checkIfAllVarsOfType('int', useTokens[index], line)
+                    if checkTuple[0]:
+                        print(self.getNumLines()[index], " All vars same type")
+                        checkLine = checkTuple[1]
+                        checkLine = self.removeAllVarsInLine(useTokens[index], checkLine)
+                        # remove all occurrences of the var in the line ^
+                    else:
+                        print(self.getNumLines()[index], " Not All vars same type")
 
-                        checkLine = line[equalSignIndex + 1:]
-                        if not self.checkIfInteger(checkLine):
-                            self.addErrorMessage(self.getNumLines()[index], ('TYPE ERROR: ' + errorMsgReference + ' '
-                                                                             + redefinedVar.getName() +
-                                                                             ' was assigned a non integer value'
-                                                                             ' on this line.'))
-                            continue
-                    # --------------------
-                    # ------ STRING ------
-                    elif redefinedVar.getType() == 'str':
+                        self.addErrorMessage(self.getNumLines()[index], 'TYPE ERROR: ' + errorMsgReference + ' '
+                                             + redefinedVar.getName() + 'was assigned a non integer value on this '
+                                                                        'line. (A variable of different type was used.'
+                                                                        ' maybe use a conversion function int() ?)')
+                        continue
+
+                    if 'l' in useTypeTokens[index]:  # List redefinition
                         if line[equalSignIndex - 1] != '+':
-                            self.addErrorMessage(self.getNumLines()[index], "TYPE ERROR: " + errorMsgReference + ' ' +
-                                                 redefinedVar.getType() + " redefined using an invalid operator"
-                                                                          " for strings; Strings can only be added to"
-                                                                          " each other")
-                        else:
-                            checkLine = line[equalSignIndex + 1:]
-                            checkVal = self.checkIfString(checkLine)
-                            if checkVal == 0:
-                                continue
-                            elif checkVal == 1:
-                                self.addErrorMessage(self.getNumLines()[index], 'Unexpected character '
-                                                                                'after line continuation character'
-                                                                                ' (backslash) ')
-                            else:
-                                self.addErrorMessage(self.getNumLines()[index], 'TYPE ERROR: ' + errorMsgReference + ' '
-                                                     + redefinedVar.getName() +
-                                                     ' was assigned a non string value on '
-                                                     'this line.')
-                    # --------------------
-                    # ------ FLOATS ------
-                    elif redefinedVar.getType() == 'float':
-                        if line[equalSignIndex - 1] == '/':
-                            if equalSignIndex - 2 >= 0:
-                                if line[equalSignIndex - 1] + line[equalSignIndex - 2] == '//':
-                                    self.addErrorMessage(self.getNumLines()[index], 'TYPE ERROR: ' + errorMsgReference
-                                                         + ' ' + redefinedVar.getName()
-                                                         + ' was reassigned using an Integer operator '
-                                                           '(Integer Division // )')
-                                    continue
-                        checkLine = line[line.find('=') + 1:]
-                        checkVal = self.checkIfFloat(checkLine)
-                        if checkVal == 0:
+                            self.addErrorMessage(self.getNumLines()[index], "TYPE ERROR: Lists can only be "
+                                                                            "added together (other standard "
+                                                                            "operations are not supported)")
                             continue
-                        elif checkVal == 1:
-                            self.addErrorMessage(self.getNumLines()[index], 'TYPE ERROR: ' + errorMsgReference
-                                                 + ' ' + redefinedVar.getType() + ' was assigned a non Float value'
-                                                                                  ' on this line.')
-                        elif checkVal == 2:
-                            self.addErrorMessage(self.getNumLines()[index], 'TYPE ERROR: ' + errorMsgReference
-                                                 + ' ' + redefinedVar.getType() + ' was assigned a non Float value on '
-                                                                                  'this line; Only integers appeared ('
-                                                                                  'Perhaps use a single /'
-                                                                                  ' division or add a decimal point')
+                    elif 's' in useTypeTokens[index]:  # Dictionary redefinition
+                        pass
+                    elif 't' in useTypeTokens[index]:
+                        self.addErrorMessage(self.getNumLines()[index], "Tuple objects do not support item "
+                                                                        "assignment. (Tuples are immutable, their "
+                                                                        "items cannot be modified after creation)")
+                        continue
+                    if line[equalSignIndex - 1] == '/':
+                        if equalSignIndex - 2 >= 0:
+                            if line[equalSignIndex - 1] + line[equalSignIndex - 2] != '//':
+                                self.addErrorMessage(self.getNumLines()[index], 'TYPE ERROR: ' + errorMsgReference
+                                                     + ' ' + redefinedVar.getName()
+                                                     + ' was reassigned using a non Integer operator '
+                                                       '(Non-Integer Division / )')
+                                continue
+
+                    checkLine = checkLine[checkLine.find('=') + 1:]
+                    if not self.checkIfInteger(checkLine):
+                        self.addErrorMessage(self.getNumLines()[index], ('TYPE ERROR: ' + errorMsgReference + ' '
+                                                                         + redefinedVar.getName() +
+                                                                         ' was assigned a non integer value'
+                                                                         ' on this line.'))
+                        continue
+                # --------------------
+                # ------ STRING ------
+                elif redefinedVar.getType() == 'str':
+                    if line[equalSignIndex - 1] != '+':
+                        self.addErrorMessage(self.getNumLines()[index], "TYPE ERROR: " + errorMsgReference + ' ' +
+                                             redefinedVar.getType() + " redefined using an invalid operator"
+                                                                      " for strings; Strings can only be added to"
+                                                                      " each other")
+                        continue
+                    # ENSURES OTHER VARS APPEARING ON THIS LINE ARE OF THE SAME TYPE/CONVERTED TO THIS TYPE
+                    checkTuple = self.checkIfAllVarsOfType('str', useTokens[index], line)
+                    if checkTuple[0]:
+                        print(self.getNumLines()[index], " All vars same type")
+                        checkLine = checkTuple[1]
+                        checkLine = self.removeAllVarsInLine(useTokens[index], checkLine)
+                        # remove all occurrences of the var in the line ^
+                    else:
+                        print(self.getNumLines()[index], " Not All vars same type")
+                        self.addErrorMessage(self.getNumLines()[index], 'TYPE ERROR: ' + errorMsgReference + ' '
+                                             + redefinedVar.getName() + ' was assigned a non integer value on'
+                                                                        ' this line. (A variable of different type was'
+                                                                        ' used. maybe use a conversion '
+                                                                        'function str() ?)')
+                        continue
+                    checkLine = checkLine[checkLine.find('=') + 1:]
+                    checkVal = self.checkIfString(checkLine)
+                    if checkVal == 0:
+                        continue
+                    elif checkVal == 1:
+                        self.addErrorMessage(self.getNumLines()[index], 'Unexpected character '
+                                                                        'after line continuation character'
+                                                                        ' (backslash) ')
+                    else:
+                        self.addErrorMessage(self.getNumLines()[index], 'TYPE ERROR: ' + errorMsgReference + ' '
+                                             + redefinedVar.getName() +
+                                             ' was assigned a non string value on '
+                                             'this line.')
+                # --------------------
+                # ------ FLOATS ------
+                elif redefinedVar.getType() == 'float':
+                    if line[equalSignIndex - 1] == '/':
+                        if equalSignIndex - 2 >= 0:
+                            if line[equalSignIndex - 1] + line[equalSignIndex - 2] == '//':
+                                self.addErrorMessage(self.getNumLines()[index], 'TYPE ERROR: ' + errorMsgReference
+                                                     + ' ' + redefinedVar.getName()
+                                                     + ' was reassigned using an Integer operator '
+                                                       '(Integer Division // )')
+                                continue
+                    # ENSURES ALL VARS OF THE SAME TYPE/CONVERTED TO THE SAME TYPE
+                    checkTuple = self.checkIfAllVarsOfType('float', useTokens[index], line)
+                    if checkTuple[0]:
+                        print(self.getNumLines()[index], " All vars same type")
+                        checkLine = checkTuple[1]
+                        checkLine = self.removeAllVarsInLine(useTokens[index], checkLine)
+                        # remove all occurrences of the var in the line ^
+                    else:
+                        print(self.getNumLines()[index], " Not All vars same type")
+                        self.addErrorMessage(self.getNumLines()[index], 'TYPE ERROR: ' + errorMsgReference + ' '
+                                             + redefinedVar.getName() + ' was assigned a non float value on this line. '
+                                                                        '(A variable of different type was used. maybe'
+                                                                        ' use a conversion function float() ?)')
+                        continue
+
+                    checkLine = checkLine[checkLine.find('=') + 1:]
+                    checkVal = self.checkIfFloat(checkLine)
+                    if checkVal == 0:
+                        continue
+                    elif checkVal == 1:
+                        self.addErrorMessage(self.getNumLines()[index], 'TYPE ERROR: ' + errorMsgReference
+                                             + ' ' + redefinedVar.getType() + ' was assigned a non Float value'
+                                                                              ' on this line.')
+                    elif checkVal == 2:
+                        self.addErrorMessage(self.getNumLines()[index], 'TYPE ERROR: ' + errorMsgReference
+                                             + ' ' + redefinedVar.getType() + ' was assigned a non Float value on '
+                                                                              'this line; Only integers appeared ('
+                                                                              'Perhaps use a single /'
+                                                                              ' division or add a decimal point')
                 else:
                     pass  # Multi-var checking here
 
@@ -928,6 +1029,32 @@ class TCA:
                     continue
                 return False, newCodeLine
         return True, newCodeLine
+
+    def checkIfListOfType(self, checkLine: str, type: str) -> int:
+        openingBrackets: int = 0
+        closingBrackets: int = 0
+
+        for char in checkLine:
+            if char == '[':
+                openingBrackets += 1
+                continue
+            if char == ']':
+                closingBrackets += 1
+                continue
+
+            # chop it by ,
+        if openingBrackets != closingBrackets:
+            return 1  # NOT A LIST
+
+        if openingBrackets == 1:  # There is only one list
+            listVals = checkLine.split(',')
+            listVals[0] = listVals[0][listVals[0].find('[') + 1:]  # remove the brackets
+            listVals[-1] = listVals[-1][:listVals[-1].find(']')]
+            for lineI, line in enumerate(listVals):
+                if not self.checkIfInteger(line):
+                    return 2  # NOT HOMOGENEOUS
+
+        return 0  # ALL GOOD
 
     def checkIfInteger(self, checkLine: str) -> bool:
         # TODO Modify so that it checks for common functions and their return types (e.g. find(random.randint() etc.)
