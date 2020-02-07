@@ -24,11 +24,11 @@ class Model:
         # a proper dedent (e.g. ends at a certain indent != 0) it will still sort the scopes correctly
         self._tca.setLines(self._lines)
         self._tca.setNumLines(self._numLines)
-        self._tca.setInitialLinesChecked(len(self._lines))
 
         self._tca.sortScopes(self._lines, self._numLines)
         # self._tca.findVariables(self._lines, self._numLines)
         self._tca.findVariablesReference(self._lines, self._numLines, self._tca.getScopes())
+        # ^ Recursively look through all scopes (DFS)
         self._tca.checkVariablesUsage()
         # -------DEBUGGING--------
         a = self._tca.getTokens()

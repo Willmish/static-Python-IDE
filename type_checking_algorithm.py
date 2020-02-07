@@ -167,7 +167,6 @@ class TCA:
         self._integerCharacters: Tuple[str, ...] = ('0', '1', '2', '3', '4', '5', '6', '7', '8', '9')
         self._integerOperators: Tuple[str, ...] = ('+', '-', '*' '**', '//', '%')
         self._errors: List[str] = []
-        self._linesChecked: List[bool] = []
         self._lines: List[str] = []
         self._numLines: List[int] = []
         self._funcReturnTypes: Dict[str, str] = {}
@@ -222,9 +221,6 @@ class TCA:
 
     def addTupleVariableUseToken(self, lineIndex: int, varIndex: int, tupleName: str, tupleTypes: List[str]) -> None:
         self._variableUseTokens[lineIndex].append(TupleVariable(tupleName, tupleTypes, varIndex))
-
-    def setInitialLinesChecked(self, lenLines: int):
-        self._linesChecked = [False for i in range(lenLines)]
 
     def setInitialVariableUseTokens(self, lengthOfFile: int):
         self._variableUseTokens = [[] for _ in range(lengthOfFile)]
@@ -360,7 +356,6 @@ class TCA:
                 if char != ' ':
                     if j > indents.peek():
                         indents.push(j)
-                        # TODO check if it is an actual new scope, not just a for loop or if/else statement
                         keyIndexD = lines[i - 1].find('def')
                         keyIndexC = lines[i - 1].find('class')
                         if keyIndexD == -1 and keyIndexC == -1:
@@ -369,7 +364,8 @@ class TCA:
                         elif keyIndexD != -1:
                             # if it turns out that the def or Class keyword found in the line above aren't actually
                             #  keywords, then it is not a proper scope
-                            if not self.checkIfVarReference(lines[i - 1], 'def', keyIndexD):
+                            if not self.checkIfVarReference(lines[i - 1], 'def', keyIndexD):  # This checks if there are
+                                #  any characters before/after the keyword that would interfere with it
                                 skipUntilDedentNTimes += 1
                                 break
                         elif not self.checkIfVarReference(lines[i - 1], 'class', keyIndexC):
@@ -416,8 +412,8 @@ class TCA:
                         break
                     if self.isAnAllowedCharacterInVarName(line[j]):  # omits characters not valid for var definition
                         varName += line[j]  # add all characters to the varName until a space appears
-                    elif line[j] == '[' or line[j] == ']':
-                        return '', ''
+                    #elif line[j] == '[' or line[j] == ']':  # THIS SHOULD NEVER OCCUR!
+                    #    return '', ''
                     else:
                         self.addErrorMessage(self.getNumLines()[index], "This is not a valid variable name. Variables "
                                                                         "can only consists of characters a-z, A-Z, "
@@ -531,19 +527,19 @@ class TCA:
                 skipNext = False
         return newVars
 
-    def checkIfSpecialVariable(self, varName: str, varType: str, index: int):
+    def checkIfSpecialVariable(self, varName: str, varType: str) -> (bool, str):
         # TODO MAKE SURE THE TOKENS ARE ADDED AND USED CORRECTLY ALONG WITH THE CLASSES (ONLY ADD IF ATTRIBUTES NOT REF ERNCED)
-        if 'List' in varType:
-            return True
+        if 'List' in varType[:4]:
+            return True, 'List'
 
-        elif 'Dict' in varType:
-            return True
+        elif 'Dict' in varType[:4]:
+            return True, 'Dict'
 
-        elif 'Tuple' in varType:
-            return True
-        return False
+        elif 'Tuple' in varType[:5]:
+            return True, 'Tuple'
+        return False, ''
 
-    def addSpecialVariableRef(self, varName: str, varType: str, index: int):
+    def addSpecialVariableRef(self, varName: str, varType: str, index: int) -> bool:
         if 'List' in varType:
             if 'l' not in self.getTokens()[index]:
                 self.addToken('l', index)
@@ -579,7 +575,7 @@ class TCA:
                 varRef = self.findVariableReferenceOnLine(self._lines[i], var)
                 # CREATE a var use token for each variable reference, unless its a dict/tuple/list, add an
                 # appropriate use token then
-                if self.checkIfSpecialVariable(var, currentScope.getScopeVariableTypeByKey(var), i):
+                if self.checkIfSpecialVariable(var, currentScope.getScopeVariableTypeByKey(var))[0]:
                     for newReferenceIndex in varRef:
                         # IF ITS NOT AN ITEM DEF / REDEFINITION, ADD A LIST/DICT/TUPLE USE TOKEN
                         if newReferenceIndex + len(var) >= len(
@@ -1003,6 +999,7 @@ class TCA:
     def removeAllVarsInLine(self, vars: List[Variable], codeLine: str) -> str:
         deletedChars = 0  # TODO MAKE SURE IT REMOVES THE int( ) before and after part, maybe do it in the funct below and pop from the list
         for var in vars:
+            # Removes the variables specified in the vars List from the codeLine str
             varStart = var.getIndex() - deletedChars
             varEnd = var.getIndex() + len(var.getName()) - deletedChars
             codeLine = codeLine[:varStart] + codeLine[varEnd:]
@@ -1193,6 +1190,7 @@ class TCA:
 
     # This function will check if all variables were defined correctly (were given a type)
     def checkVariableDefinition(self, variable: Tuple[str, str], index: int, currentScope: Scope) -> bool:
+        # TODO REMOVE CHECKING IF IN THE SCOPES ABOVE, SEE EXAMPLE IN TEST1
         varName: str = variable[0]
         varType: str = variable[1]
         thisScope: Scope = currentScope
@@ -1258,6 +1256,21 @@ class TCA:
             'myString', 'Tuple[str,int,...]'), (
             'Identifying variables for TCA failed! - (name and type)',)
 
+        assert self.identifyVariable("testList[2] = 23", 12, 0) == ('testList', 'specialVar'), (
+            "Identifying variables for TCA failed! - (special var reference)")
+
+        assert self.checkIfSpecialVariable('myList', 'Dict[List[int], str]') == (True, 'Dict'), (
+            "Checking if variable is a special variable of type Dict failed!")
+
+        assert self.checkIfSpecialVariable('notSpecial', 'int') == (False, ''), (
+            'Checking if variable is special failed! (int is not special!)')
+
+        assert self.checkIfSpecialVariable('myTuple', 'Tuple[List[int], str, Dict[str, int])') == (True, 'Tuple'), (
+            'Checking if variable is a special variable of type Tuple failed!')
+
+        assert self.checkIfSpecialVariable('BublinJechane', 'Dict[List[str], int]') == (True, 'Dict'), (
+            'Checking if variable is a special variable of type Dict failed!')
+
         assert self.findVariableReferenceOnLine("ooga += 2 - 3*ooga", "ooga") == [0, 14], ("Finding variable "
                                                                                            "references on a "
                                                                                            "specific line "
@@ -1269,6 +1282,10 @@ class TCA:
 
         assert self.findVariableReferenceOnLine("thisVar >= smallVar", "smallVar") == [11], (
             "Finding variable references on a specific line for a comparison failed!",)
+
+        assert self.removeAllVarsInLine([Variable('Bublin', 'int', 0), Variable('newVar', 'str', 10)],
+                                        'Bublin += newVar') == ' += ', (
+            'Removing all Variables in a line failed!') # TODO check if keeeping the spaces is necessary
 
         assert self.checkIfInteger("-5 + 2 // 3"), ("Checking if only integer-like operators"
                                                     " and chars used failed!",)
@@ -1284,6 +1301,13 @@ class TCA:
 
         assert self.checkIfFloat('2-d') == 1, ("Checking if only float-like operators and chars used failed!",)
 
-        assert not self.checkForEscapeChar('\\\\se\'', 2), ("Checking for Escape Character failed!",)
+        assert not self.checkForEscapeChar('\\\\se\'', 2), ("Checking for Escape Character before a sing with "
+                                                            "index i failed!",)
+
+        assert self.checkForEscapeChar('\\\'not a string\'', 1), ("Checking for Escape Character before "
+                                                                  "sign with index i failed!",)
 
         assert self.checkIfInString('\'au\'', 1), ("Checking if character with index i is in a string failed!",)
+
+        assert not self.checkIfInString('\'this is not a string', 1), ("Checking if character with index i is in a"
+                                                                       " string failed!")

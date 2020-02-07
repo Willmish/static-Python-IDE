@@ -1,4 +1,4 @@
-from typing import List, Dict
+from typing import List, Dict, Tuple
 '''
 a: str = 'hi'
 print(type(a))
@@ -16,7 +16,7 @@ print(('hi'))
 print(type(returnInt('hi')))
 
 '''
-      
+
 
 '''
 from typing import List
@@ -97,12 +97,24 @@ d = 'ah \ #'
 print(d)
 '''
 
-b: Dict[str, int] = {'ahoy': 2}
-b['ahoy'] += 2
-print(b)
+b: Dict[List[int], int] = {'ahoy': 2, 2: 4}
 
-# myT: Tuple[str, int] = ('a', 1)
-# myT[1] += 2
+print(b, type(b))
 
-myList: List[int] = [1, 2]
-myList -= [1]
+myT: Tuple[str, int] = ('a', 1)
+myT = ('cd', 2)
+
+#myList: List[int] = [1, 2]
+#myList -= [1]
+
+this: str = 'a'
+print(this, type(this))
+
+def newMethod():
+    this: int = 2
+    print(this, type(this))
+
+newMethod()
+print(this, type(this))
+
+
