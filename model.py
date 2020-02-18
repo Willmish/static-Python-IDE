@@ -28,6 +28,8 @@ class Model:
         self._tca.sortScopes(self._lines, self._numLines)
         # self._tca.findVariables(self._lines, self._numLines)
         self._tca.findVariablesReference(self._lines, self._numLines, self._tca.getScopes())
+        print(self._tca.getTokens())
+        print(self._tca.getScopes())
         # ^ Recursively look through all scopes (DFS)
         self._tca.checkVariablesUsage()
         # -------DEBUGGING--------

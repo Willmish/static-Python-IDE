@@ -104,10 +104,11 @@ print(b, type(b))
 myT: Tuple[str, int] = ('a', 1)
 myT = ('cd', 2)
 
-#myList: List[int] = [1, 2]
+myList: List[int] = [1, 2] + [2,5] + list(range(23))
+print(myList)
 #myList -= [1]
 
-this: str = 'a'
+this: str = bool('a')
 print(this, type(this))
 
 def newMethod():
