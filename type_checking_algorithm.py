@@ -17,9 +17,6 @@ from DataStructures import Stack
 # Idea #2:
 # Don't keep track of the scopes, analyze the code line by line,
 # looking how each variable is referenced and used on each line
-# TODO if possible, replace all string with string TOKENS --> youll never have to worry about them again!
-# Issue #1: if two scopes are parallel, e.g. two loops one after the other and a function is defined in the one above,
-# it will not be recognised in the next scope
 
 class Scope:
     def __init__(self, parent=None, scopeBeginning: int = 0):
@@ -70,7 +67,7 @@ class Scope:
     def getSubscopes(self) -> List:
         return self.subscopes
 
-    def getSubscopesBeginning(self, result: str = ''):
+    def getSubscopesBeginning(self, result: str = '') -> str:
         result += ' b' + str(self.scopeBeginning)
         result += str(self.variables)
         result += ' e'
@@ -87,9 +84,9 @@ class Scope:
 
 class Variable:
     def __init__(self, variableName: str, variableType: str, indexOnLine: int):
-        self._name = variableName
-        self._type = variableType
-        self._indexOnLine = indexOnLine
+        self._name: str = variableName
+        self._type: str = variableType
+        self._indexOnLine: int = indexOnLine
 
     def getName(self) -> str:
         return self._name
@@ -112,7 +109,7 @@ class ListVariable(Variable):
 class DictionaryVariable(Variable):
     def __init__(self, variableName: str, keyType: str, valueType: str, indexOnLine: int):
         super().__init__(variableName, keyType, indexOnLine)
-        self._valueType = valueType
+        self._valueType: str = valueType
 
     def getValueType(self) -> str:
         return self._valueType
@@ -125,11 +122,15 @@ class TupleVariable(Variable):
     def __init__(self, variableName: str, variableTypes: List[str], indexOnLine: int):
         if len(variableTypes) == 2:
             if variableTypes[1] == '...':
+                # if repeating, add a single type
                 super().__init__(variableName, variableTypes[0], indexOnLine)
                 self._variableTypes = []
             else:
                 super().__init__(variableName, '', indexOnLine)
-                self._variableTypes = variableTypes
+                self._variableTypes: List[str] = variableTypes
+        else:
+            super().__init__(variableName, '', indexOnLine)
+            self._variableTypes: List[str] = variableTypes
 
     def getType(self) -> List[str]:
         if self._variableTypes:
@@ -167,7 +168,6 @@ class TCA:
         self._integerCharacters: Tuple[str, ...] = ('0', '1', '2', '3', '4', '5', '6', '7', '8', '9')
         self._integerOperators: Tuple[str, ...] = ('+', '-', '*' '**', '//', '%')
         self._errors: List[str] = []
-        self._linesChecked: List[bool] = []
         self._lines: List[str] = []
         self._numLines: List[int] = []
         self._funcReturnTypes: Dict[str, str] = {}
@@ -223,9 +223,6 @@ class TCA:
     def addTupleVariableUseToken(self, lineIndex: int, varIndex: int, tupleName: str, tupleTypes: List[str]) -> None:
         self._variableUseTokens[lineIndex].append(TupleVariable(tupleName, tupleTypes, varIndex))
 
-    def setInitialLinesChecked(self, lenLines: int):
-        self._linesChecked = [False for i in range(lenLines)]
-
     def setInitialVariableUseTokens(self, lengthOfFile: int):
         self._variableUseTokens = [[] for _ in range(lengthOfFile)]
 
@@ -247,6 +244,9 @@ class TCA:
     def setVariableUseTokens(self, tokens: List[List[Variable]]):
         self._variableUseTokens = tokens
 
+    def sortErrors(self) -> None:
+        self._errors = sorted(self._errors, key=lambda element: int(element.split()[1][:-1]))
+
     def cleanAttributes(self) -> None:  # TODO keeping some of these values might be useful
         # (quicker runtime for multiple checks)
         self._scopes = Scope()
@@ -254,27 +254,34 @@ class TCA:
         self._errors = []
 
     def handleSpecialVarAdding(self, variableName: str, variableType: str, variableIndex: int, lineIndex: int) -> None:
-        if 'List' in variableType:
+        # Depending on the type of the Special Variable, add an appropriate Variable Usage token
+        if 'List' in variableType[:4]:
             newVarType = variableType[len('List') + 1:-1]
             self.addListVariableUseToken(lineIndex, variableIndex, variableName, newVarType)
 
-        elif 'Dict' in variableType:
+        elif 'Dict' in variableType[:4]:
             # Split the type of dict into the key type and the value type
-            listType = variableType[variableType.find('['):].split(',')
+            dictType = variableType[variableType.find('[') + 1:].split(',')
+            dictType[-1] = dictType[-1][:len(dictType[-1]) - 1]
             variableKeyType = ''
             variableValueType = ''
-            if len(listType) == 2:
-                for char in listType[0]:
-                    if self.isAnAllowedCharacterInVarName(char):
+            if len(dictType) == 2:
+                for char in dictType[0]:
+                    if char != ' ':
                         variableKeyType += char
 
-                for char in listType[1]:
-                    if self.isAnAllowedCharacterInVarName(char):
+                for char in dictType[1]:
+                    if char != ' ':
                         variableValueType += char
             self.addDictVariableUseToken(lineIndex, variableIndex, variableName, variableKeyType, variableValueType)
-        # TODO ADD FOR TUPLE AND DICT
 
-    def removeLastToken(self, index: int):
+        elif 'Tuple' in variableType[:5]:
+            tupleType = variableType[variableType.find('[')+1:].split(',')
+            self.addTupleVariableUseToken(lineIndex, variableIndex, variableName, tupleType)
+        # TODO FIX TUPLE TYPE CHECKING FOR TYPE WITH SPACES, SAME FOR DICTIONARY (e.g. mydict: Dict[str, int = {}
+        # will be recognised as a variable with name int and no type
+
+    def removeLastToken(self, index: int) -> None:
         self._tokens[index] = self._tokens[index][:-1]
 
     def removeComments(self, lines: List[str]) -> List:
@@ -328,8 +335,7 @@ class TCA:
 
         return lines, numLines
 
-    def isAnAllowedCharacterInVarName(self, character: str) -> bool:  # TODO currently added an option to allow . sign
-        # might need to remove later one
+    def isAnAllowedCharacterInVarName(self, character: str) -> bool:
         if ord('a') <= ord(character) <= ord('z') or ord('A') <= ord(character) <= ord('Z') or ord('0') <= ord(
                 character) <= ord('9') or character in ('_',):
             return True
@@ -356,7 +362,6 @@ class TCA:
                 if char != ' ':
                     if j > indents.peek():
                         indents.push(j)
-                        # TODO check if it is an actual new scope, not just a for loop or if/else statement
                         keyIndexD = lines[i - 1].find('def')
                         keyIndexC = lines[i - 1].find('class')
                         if keyIndexD == -1 and keyIndexC == -1:
@@ -365,7 +370,8 @@ class TCA:
                         elif keyIndexD != -1:
                             # if it turns out that the def or Class keyword found in the line above aren't actually
                             #  keywords, then it is not a proper scope
-                            if not self.checkIfVarReference(lines[i - 1], 'def', keyIndexD):
+                            if not self.checkIfVarReference(lines[i - 1], 'def', keyIndexD):  # This checks if there are
+                                #  any characters before/after the keyword that would interfere with it
                                 skipUntilDedentNTimes += 1
                                 break
                         elif not self.checkIfVarReference(lines[i - 1], 'class', keyIndexC):
@@ -389,8 +395,6 @@ class TCA:
             variables: List[Tuple[str, str]] = self.findVariableDefinitionsOnLine(lines[i], i, currentScope)
             for var in variables:
                 currentScope.addVariable(var[0], var[1])
-        print(self._tokens)
-        print(self._scopes)
 
     def identifyVariable(self, line: str, signLoc: int, index: int) -> Tuple[str, str]:
         # This function is called whenever a variable definition is found, it returns
@@ -412,8 +416,8 @@ class TCA:
                         break
                     if self.isAnAllowedCharacterInVarName(line[j]):  # omits characters not valid for var definition
                         varName += line[j]  # add all characters to the varName until a space appears
-                    elif line[j] == '[' or line[j] == ']':
-                        return '', ''
+                    #elif line[j] == '[' or line[j] == ']':  # THIS SHOULD NEVER OCCUR!
+                    #    return '', ''
                     else:
                         self.addErrorMessage(self.getNumLines()[index], "This is not a valid variable name. Variables "
                                                                         "can only consists of characters a-z, A-Z, "
@@ -465,7 +469,6 @@ class TCA:
                                 print("Variable redefinition with an operator on line: " + str(
                                     self.getNumLines()[index]) + ", : " + line)  # TODO remove when working
                                 self.addToken('v', index)
-                                # TODO run value checking here
                                 # start by checking the type of the variable, if not defined, pass
                                 # otherwise check the operator. If invalid, add value error. then, check the RHS of the
                                 # = sign. if type not assigned, mark as checked (there already will be an error for the
@@ -527,30 +530,29 @@ class TCA:
                 skipNext = False
         return newVars
 
-    def checkIfSpecialVariable(self, varName: str, varType: str, index: int):
-        # TODO MAKE SURE THE TOKENS ARE ADDED AND USED CORRECTLY ALONG WITH THE CLASSES (ONLY ADD IF ATTRIBUTES NOT REF ERNCED)
-        if 'List' in varType:
-            return True
+    def checkIfSpecialVariable(self, varName: str, varType: str) -> (bool, str):
+        if 'List' in varType[:4]:
+            return True, 'List'
 
-        elif 'Dict' in varType:
-            return True
+        elif 'Dict' in varType[:4]:
+            return True, 'Dict'
 
-        elif 'Tuple' in varType:
-            return True
-        return False
+        elif 'Tuple' in varType[:5]:
+            return True, 'Tuple'
+        return False, ''
 
-    def addSpecialVariableRef(self, varName: str, varType: str, index: int):
-        if 'List' in varType:
+    def addSpecialVariableRef(self, varName: str, varType: str, index: int) -> bool:
+        if 'List' in varType[:4]:
             if 'l' not in self.getTokens()[index]:
                 self.addToken('l', index)
             return True
 
-        elif 'Dict' in varType:
+        elif 'Dict' in varType[:4]:
             if 's' not in self.getTokens()[index]:
                 self.addToken('s', index)
             return True
 
-        elif 'Tuple' in varType:
+        elif 'Tuple' in varType[:5]:
             if 't' not in self.getTokens()[index]:
                 self.addToken('t', index)
             return True
@@ -565,7 +567,7 @@ class TCA:
                 return False
         return True
 
-    def findVariablesReference(self, lines: List[str], numLines: List[int], scope: Scope):
+    def findVariablesReference(self, lines: List[str], numLines: List[int], scope: Scope) -> None:
         currentScope = scope
         for var in currentScope.getScopeVariables():
             searchStart = currentScope.getScopeBeginning()
@@ -575,10 +577,14 @@ class TCA:
                 varRef = self.findVariableReferenceOnLine(self._lines[i], var)
                 # CREATE a var use token for each variable reference, unless its a dict/tuple/list, add an
                 # appropriate use token then
-                if self.checkIfSpecialVariable(var, currentScope.getScopeVariableTypeByKey(var), i):
+                if self.checkIfSpecialVariable(var, currentScope.getScopeVariableTypeByKey(var))[0]:
                     for newReferenceIndex in varRef:
                         # IF ITS NOT AN ITEM DEF / REDEFINITION, ADD A LIST/DICT/TUPLE USE TOKEN
-                        if self.getLines()[i][newReferenceIndex + len(var)] != '[':
+                        if newReferenceIndex + len(var) >= len(
+                                self.getLines()[i]):  # CHECK IF NOT AT THE END OF THE LINE
+                            self.addSpecialVariableRef(var, currentScope.getScopeVariableTypeByKey(var), i)
+
+                        elif self.getLines()[i][newReferenceIndex + len(var)] != '[':
                             self.addSpecialVariableRef(var, currentScope.getScopeVariableTypeByKey(var), i)
 
                         self.handleSpecialVarAdding(var, currentScope.getScopeVariableTypeByKey(var), newReferenceIndex,
@@ -590,6 +596,7 @@ class TCA:
                         print("Var", var, " found on line: ", numLines[i], ". start index: ", newReferenceIndex)
                 i += 1
         for myScope in currentScope.getSubscopes():
+            # TODO check if this is correct!!! (maybe no need to look in the scopes below)
             self.findVariablesReference(lines, numLines, myScope)
 
     def findVariableReferenceOnLine(self, line: str, variable: str) -> List[int]:
@@ -612,7 +619,7 @@ class TCA:
 
         return varReference
 
-    def sortVariableUseTokens(self):
+    def sortVariableUseTokens(self) -> None:
         # This function sorts all varUse tokens according to the order of appearance (key attribute means that the
         # following function will be applied to all elements, and assumes it returns a single value based on which it
         # can be sorted
@@ -621,9 +628,8 @@ class TCA:
             newList.append(sorted(line, key=lambda varIndex: varIndex.getIndex()))
         self.setVariableUseTokens(newList)
 
-    def checkVariablesUsage(self):  # TODO finish it!!
+    def checkVariablesUsage(self) -> None:  # TODO finish it!!
         # TODO Booleans, ensuring the homogeneity of lists and dictionaries' keys and values
-        # TODO VARIABLES IN CAPS ARE CONSTANTS
         # TODO ALLOWS HETEROGENEITY OF TUPLES
         # TODO ENSURE PARAMETERS ARE TYPED, AND ALL FUNCT HAVE A RETURN TYPE
         self.sortVariableUseTokens()
@@ -682,16 +688,60 @@ class TCA:
                 # if not useTokens[index]:  # Run single variable checking here
                 checkLine = line
 
+                # -----  LIST  -----
+                if 'l' in useTypeTokens[index]:  # List definition/redefinition
+                    listType = definedVar.getType()
+                    checkTuple = self.checkIfAllVarsOfType(listType, useTokens[index], line)
+                    if checkTuple[0]:
+                        print(self.getNumLines()[index], " All vars same type")
+                        checkLine = checkTuple[1]
+                        checkLine = self.removeAllVarsInLine(useTokens[index], checkLine)
+                        # remove all occurrences of the var in the line ^
+                    else:
+                        print(self.getNumLines()[index], " Not All vars same type")
+
+                        self.addErrorMessage(self.getNumLines()[index], 'TYPE ERROR: ' + errorMsgReference + ' '
+                                             + definedVar.getName() + ' was assigned a non ' + listType + ' value on '
+                                                                                                          'this line. '
+                                                                                                          '(A variable of different type was used.)')
+                        continue
+                    checkLine = checkLine[checkLine.find('=') + 1:]
+                    checkVal = self.checkIfListOfType(checkLine, listType)
+                    if checkVal == 0:
+                        continue
+                    elif checkVal == 1:
+                        self.addErrorMessage(self.getNumLines()[index], 'TYPE ERROR: List ' + definedVar.getName() +
+                                             ' was assigned a non list value on this line.')
+                        continue
+                    elif checkVal == 2:
+                        self.addErrorMessage(self.getNumLines()[index], 'TYPE ERROR: List ' + definedVar.getName() +
+                                             ' is not homogeneous (not all elements in the list are of type  '
+                                             + listType + ')')
+                        continue
+                    elif checkVal == 3:
+                        self.addErrorMessage(self.getNumLines()[index], 'TYPE ERROR: List ' + definedVar.getName() +
+                                             ' is assigned a List value with incorrect linking  operator '
+                                             '(two lists can only be joined together, using a + operator)')
+                        continue
+                    elif checkVal == 4:
+                        self.addErrorMessage(self.getNumLines()[index], 'TYPE ERROR: Some elements in the new list '
+                                             + definedVar.getName() + ' are of a different type than '
+                                             + definedVar.getType())
+                        continue
+                    pass  # TODO FINISH HERE
+                # ------------------
+                # -----  DICT  -----
+                elif 's' in useTypeTokens[index]:  # Dictionary definition/redefinition
+                    pass
+                # ------------------
+                # ----- TUPLES -----
+                elif 't' in useTypeTokens[index]:
+                    pass
+                # ------------------
                 # -----INTEGERS-----
                 if definedVar.getType() == 'int':
                     # TODO IMPORTANT, MAKE SURE THAT LIST VAR IF REFERENCE TO THE WHOLE LIST CHECKED SEPERATELY AS A LIST
                     # TODO CHECK WHAT ACTION CAN BE PERFORMED ON LIST/DICT/TUPLE ETC
-                    if 'l' in useTypeTokens[index]:  # List definition/redefinition
-                        pass  # TODO FINISH HERE
-                    elif 's' in useTypeTokens[index]:  # Dictionary definition/redefinition
-                        pass
-                    elif 't' in useTypeTokens[index]:
-                        pass
                     checkTuple = self.checkIfAllVarsOfType('int', useTokens[index], line)
                     if checkTuple[0]:
                         print(self.getNumLines()[index], " All vars same type")
@@ -726,7 +776,7 @@ class TCA:
                     else:
                         print(self.getNumLines()[index], " Not All vars same type")
                         self.addErrorMessage(self.getNumLines()[index], 'TYPE ERROR: ' + errorMsgReference + ' '
-                                             + definedVar.getName() + ' was assigned a non integer value on this line. '
+                                             + definedVar.getName() + ' was assigned a non string value on this line. '
                                                                       '(A variable of different type was used. maybe us'
                                                                       'e a conversion function str() ?)')
                         continue
@@ -745,16 +795,30 @@ class TCA:
                 # ------------------
                 # -----FLOATS-------
                 elif definedVar.getType() == 'float':
-                    checkLine = line[line.find('=') + 1:]
+                    checkTuple = self.checkIfAllVarsOfType('float', useTokens[index], line)
+                    if checkTuple[0]:
+                        print(self.getNumLines()[index], " All vars same type")
+                        checkLine = checkTuple[1]
+                        checkLine = self.removeAllVarsInLine(useTokens[index], checkLine)
+                        # remove all occurrences of the var in the line ^
+                    else:
+                        print(self.getNumLines()[index], " Not All vars same type")
+                        self.addErrorMessage(self.getNumLines()[index], 'TYPE ERROR: ' + errorMsgReference + ' '
+                                             + definedVar.getName() + ' was assigned a non float value on this line. '
+                                                                      '(A variable of different type was used. maybe us'
+                                                                      'e a conversion function float() ?)')
+                        continue
+
+                    checkLine = checkLine[checkLine.find('=') + 1:]
                     checkVal = self.checkIfFloat(checkLine)
                     if checkVal == 0:
                         continue
                     elif checkVal == 1:
                         self.addErrorMessage(self.getNumLines()[index], 'TYPE ERROR: ' + errorMsgReference + ' '
-                                             + definedVar.getType() + ' was assigned a non Float value on this line.')
+                                             + definedVar.getName() + ' was assigned a non Float value on this line.')
                     elif checkVal == 2:
                         self.addErrorMessage(self.getNumLines()[index], 'TYPE ERROR: ' + errorMsgReference + ' ' +
-                                             definedVar.getType() + ' was assigned a non Float value on this line; '
+                                             definedVar.getName() + ' was assigned a non Float value on this line; '
                                                                     'Only integers appeared (Perhaps use a single /'
                                                                     ' division or add a decimal point')
                 # ------------------
@@ -817,91 +881,174 @@ class TCA:
                 useTokens[index].remove(redefinedVar)
                 equalSignIndex = line.find('=')
 
-                if not useTokens[index]:  # If there are no other vars used on this line, it is a single var redef
-                    # ----- INTEGER -----
-                    if redefinedVar.getType() == 'int':
-                        if 'l' in useTypeTokens[index]:  # List redefinition
-                            if line[equalSignIndex - 1] != '+':
-                                self.addErrorMessage(self.getNumLines()[index], "TYPE ERROR: Lists can only be "
-                                                                                "added together (other standard "
-                                                                                "operations are not supported)")
-                                continue
-                        elif 's' in useTypeTokens[index]:  # Dictionary redefinition
-                            pass
-                        elif 't' in useTypeTokens[index]:
-                            self.addErrorMessage(self.getNumLines()[index], "Tuple objects do not support item "
-                                                                            "assignment. (Tuples are immutable, their "
-                                                                            "items cannot be modified after creation)")
-                            continue
-                        if line[equalSignIndex - 1] == '/':
-                            if equalSignIndex - 2 >= 0:
-                                if line[equalSignIndex - 1] + line[equalSignIndex - 2] != '//':
-                                    self.addErrorMessage(self.getNumLines()[index], 'TYPE ERROR: ' + errorMsgReference
-                                                         + ' ' + redefinedVar.getName()
-                                                         + ' was reassigned using a non Integer operator '
-                                                           '(Non-Integer Division / )')
-                                    continue
+                if 'l' in useTypeTokens[index]:  # List redefinition
+                    if line[equalSignIndex - 1] != '+':
+                        self.addErrorMessage(self.getNumLines()[index], "TYPE ERROR: Lists can only be "
+                                                                        "added together (other standard "
+                                                                        "operations are not supported)")
+                        continue
+                    listType = redefinedVar.getType()
+                    checkTuple = self.checkIfAllVarsOfType(listType, useTokens[index], line)
+                    if checkTuple[0]:
+                        print(self.getNumLines()[index], " All vars same type")
+                        checkLine = checkTuple[1]
+                        checkLine = self.removeAllVarsInLine(useTokens[index], checkLine)
+                        # remove all occurrences of the var in the line ^
+                    else:
+                        print(self.getNumLines()[index], " Not All vars same type")
 
-                        checkLine = line[equalSignIndex + 1:]
-                        if not self.checkIfInteger(checkLine):
-                            self.addErrorMessage(self.getNumLines()[index], ('TYPE ERROR: ' + errorMsgReference + ' '
-                                                                             + redefinedVar.getName() +
-                                                                             ' was assigned a non integer value'
-                                                                             ' on this line.'))
-                            continue
-                    # --------------------
-                    # ------ STRING ------
-                    elif redefinedVar.getType() == 'str':
-                        if line[equalSignIndex - 1] != '+':
-                            self.addErrorMessage(self.getNumLines()[index], "TYPE ERROR: " + errorMsgReference + ' ' +
-                                                 redefinedVar.getType() + " redefined using an invalid operator"
-                                                                          " for strings; Strings can only be added to"
-                                                                          " each other")
-                        else:
-                            checkLine = line[equalSignIndex + 1:]
-                            checkVal = self.checkIfString(checkLine)
-                            if checkVal == 0:
+                        self.addErrorMessage(self.getNumLines()[index], 'TYPE ERROR: ' + errorMsgReference + ' '
+                                             + redefinedVar.getName() + ' was assigned a non ' + listType + ' value on '
+                                                                                                          'this line. '
+                                                                                                          '(A variable of different type was used.')
+                        continue
+                    checkLine = checkLine[checkLine.find('=') + 1:]
+                    checkVal = self.checkIfListOfType(checkLine, listType)
+                    if checkVal == 0:
+                        continue
+                    elif checkVal == 1:
+                        self.addErrorMessage(self.getNumLines()[index], 'TYPE ERROR: List ' + definedVar.getName() +
+                                             ' was assigned a non list value on this line.')
+                        continue
+                    elif checkVal == 2:
+                        self.addErrorMessage(self.getNumLines()[index], 'TYPE ERROR: List ' + definedVar.getName() +
+                                             ' is not homogeneous (not all elements in the list are of type  '
+                                             + listType + ')')
+                        continue
+                    elif checkVal == 3:
+                        self.addErrorMessage(self.getNumLines()[index], 'TYPE ERROR: List ' + definedVar.getName() +
+                                             ' is assigned a List value with incorrect linking  operator '
+                                             '(two lists can only be joined together, using a + operator)')
+                        continue
+                    elif checkVal == 4:
+                        self.addErrorMessage(self.getNumLines()[index], 'TYPE ERROR: Some elements in the new list '
+                                             + definedVar.getName() + ' are of a different type than '
+                                             + definedVar.getType())
+                elif 's' in useTypeTokens[index]:  # Dictionary redefinition
+                    pass
+                elif 't' in useTypeTokens[index]:
+                    self.addErrorMessage(self.getNumLines()[index], "Tuple objects do not support item "
+                                                                    "assignment. (Tuples are immutable, their "
+                                                                    "items cannot be modified after creation)")
+                    continue
+                # ----- INTEGER -----
+                if redefinedVar.getType() == 'int':
+                    # CHECK OTHER VARIABLES:
+                    checkTuple = self.checkIfAllVarsOfType('int', useTokens[index], line)
+                    if checkTuple[0]:
+                        print(self.getNumLines()[index], " All vars same type")
+                        checkLine = checkTuple[1]
+                        checkLine = self.removeAllVarsInLine(useTokens[index], checkLine)
+                        # remove all occurrences of the var in the line ^
+                    else:
+                        print(self.getNumLines()[index], " Not All vars same type")
+
+                        self.addErrorMessage(self.getNumLines()[index], 'TYPE ERROR: ' + errorMsgReference + ' '
+                                             + redefinedVar.getName() + 'was assigned a non integer value on this '
+                                                                        'line. (A variable of different type was used.'
+                                                                        ' maybe use a conversion function int() ?)')
+                        continue
+
+                    if line[equalSignIndex - 1] == '/':
+                        if equalSignIndex - 2 >= 0:
+                            if line[equalSignIndex - 1] + line[equalSignIndex - 2] != '//':
+                                self.addErrorMessage(self.getNumLines()[index], 'TYPE ERROR: ' + errorMsgReference
+                                                     + ' ' + redefinedVar.getName()
+                                                     + ' was reassigned using a non Integer operator '
+                                                       '(Non-Integer Division / )')
                                 continue
-                            elif checkVal == 1:
-                                self.addErrorMessage(self.getNumLines()[index], 'Unexpected character '
-                                                                                'after line continuation character'
-                                                                                ' (backslash) ')
-                            else:
-                                self.addErrorMessage(self.getNumLines()[index], 'TYPE ERROR: ' + errorMsgReference + ' '
-                                                     + redefinedVar.getName() +
-                                                     ' was assigned a non string value on '
-                                                     'this line.')
-                    # --------------------
-                    # ------ FLOATS ------
-                    elif redefinedVar.getType() == 'float':
-                        if line[equalSignIndex - 1] == '/':
-                            if equalSignIndex - 2 >= 0:
-                                if line[equalSignIndex - 1] + line[equalSignIndex - 2] == '//':
-                                    self.addErrorMessage(self.getNumLines()[index], 'TYPE ERROR: ' + errorMsgReference
-                                                         + ' ' + redefinedVar.getName()
-                                                         + ' was reassigned using an Integer operator '
-                                                           '(Integer Division // )')
-                                    continue
-                        checkLine = line[line.find('=') + 1:]
-                        checkVal = self.checkIfFloat(checkLine)
-                        if checkVal == 0:
-                            continue
-                        elif checkVal == 1:
-                            self.addErrorMessage(self.getNumLines()[index], 'TYPE ERROR: ' + errorMsgReference
-                                                 + ' ' + redefinedVar.getType() + ' was assigned a non Float value'
-                                                                                  ' on this line.')
-                        elif checkVal == 2:
-                            self.addErrorMessage(self.getNumLines()[index], 'TYPE ERROR: ' + errorMsgReference
-                                                 + ' ' + redefinedVar.getType() + ' was assigned a non Float value on '
-                                                                                  'this line; Only integers appeared ('
-                                                                                  'Perhaps use a single /'
-                                                                                  ' division or add a decimal point')
+
+                    checkLine = checkLine[checkLine.find('=') + 1:]
+                    if not self.checkIfInteger(checkLine):
+                        self.addErrorMessage(self.getNumLines()[index], ('TYPE ERROR: ' + errorMsgReference + ' '
+                                                                         + redefinedVar.getName() +
+                                                                         ' was assigned a non integer value'
+                                                                         ' on this line.'))
+                        continue
+                # --------------------
+                # ------ STRING ------
+                elif redefinedVar.getType() == 'str':
+                    if line[equalSignIndex - 1] != '+':
+                        self.addErrorMessage(self.getNumLines()[index], "TYPE ERROR: " + errorMsgReference + ' ' +
+                                             redefinedVar.getType() + " redefined using an invalid operator"
+                                                                      " for strings; Strings can only be added to"
+                                                                      " each other")
+                        continue
+                    # ENSURES OTHER VARS APPEARING ON THIS LINE ARE OF THE SAME TYPE/CONVERTED TO THIS TYPE
+                    checkTuple = self.checkIfAllVarsOfType('str', useTokens[index], line)
+                    if checkTuple[0]:
+                        print(self.getNumLines()[index], " All vars same type")
+                        checkLine = checkTuple[1]
+                        checkLine = self.removeAllVarsInLine(useTokens[index], checkLine)
+                        # remove all occurrences of the var in the line ^
+                    else:
+                        print(self.getNumLines()[index], " Not All vars same type")
+                        self.addErrorMessage(self.getNumLines()[index], 'TYPE ERROR: ' + errorMsgReference + ' '
+                                             + redefinedVar.getName() + ' was assigned a non integer value on'
+                                                                        ' this line. (A variable of different type was'
+                                                                        ' used. maybe use a conversion '
+                                                                        'function str() ?)')
+                        continue
+                    checkLine = checkLine[checkLine.find('=') + 1:]
+                    checkVal = self.checkIfString(checkLine)
+                    if checkVal == 0:
+                        continue
+                    elif checkVal == 1:
+                        self.addErrorMessage(self.getNumLines()[index], 'Unexpected character '
+                                                                        'after line continuation character'
+                                                                        ' (backslash) ')
+                    else:
+                        self.addErrorMessage(self.getNumLines()[index], 'TYPE ERROR: ' + errorMsgReference + ' '
+                                             + redefinedVar.getName() +
+                                             ' was assigned a non string value on '
+                                             'this line.')
+                # --------------------
+                # ------ FLOATS ------
+                elif redefinedVar.getType() == 'float':
+                    if line[equalSignIndex - 1] == '/':
+                        if equalSignIndex - 2 >= 0:
+                            if line[equalSignIndex - 1] + line[equalSignIndex - 2] == '//':
+                                self.addErrorMessage(self.getNumLines()[index], 'TYPE ERROR: ' + errorMsgReference
+                                                     + ' ' + redefinedVar.getName()
+                                                     + ' was reassigned using an Integer operator '
+                                                       '(Integer Division // )')
+                                continue
+                    # ENSURES ALL VARS OF THE SAME TYPE/CONVERTED TO THE SAME TYPE
+                    checkTuple = self.checkIfAllVarsOfType('float', useTokens[index], line)
+                    if checkTuple[0]:
+                        print(self.getNumLines()[index], " All vars same type")
+                        checkLine = checkTuple[1]
+                        checkLine = self.removeAllVarsInLine(useTokens[index], checkLine)
+                        # remove all occurrences of the var in the line ^
+                    else:
+                        print(self.getNumLines()[index], " Not All vars same type")
+                        self.addErrorMessage(self.getNumLines()[index], 'TYPE ERROR: ' + errorMsgReference + ' '
+                                             + redefinedVar.getName() + ' was assigned a non float value on this line. '
+                                                                        '(A variable of different type was used. maybe'
+                                                                        ' use a conversion function float() ?)')
+                        continue
+
+                    checkLine = checkLine[checkLine.find('=') + 1:]
+                    checkVal = self.checkIfFloat(checkLine)
+                    if checkVal == 0:
+                        continue
+                    elif checkVal == 1:
+                        self.addErrorMessage(self.getNumLines()[index], 'TYPE ERROR: ' + errorMsgReference
+                                             + ' ' + redefinedVar.getType() + ' was assigned a non Float value'
+                                                                              ' on this line.')
+                    elif checkVal == 2:
+                        self.addErrorMessage(self.getNumLines()[index], 'TYPE ERROR: ' + errorMsgReference
+                                             + ' ' + redefinedVar.getType() + ' was assigned a non Float value on '
+                                                                              'this line; Only integers appeared ('
+                                                                              'Perhaps use a single /'
+                                                                              ' division or add a decimal point')
                 else:
                     pass  # Multi-var checking here
 
     def removeAllVarsInLine(self, vars: List[Variable], codeLine: str) -> str:
         deletedChars = 0  # TODO MAKE SURE IT REMOVES THE int( ) before and after part, maybe do it in the funct below and pop from the list
         for var in vars:
+            # Removes the variables specified in the vars List from the codeLine str
             varStart = var.getIndex() - deletedChars
             varEnd = var.getIndex() + len(var.getName()) - deletedChars
             codeLine = codeLine[:varStart] + codeLine[varEnd:]
@@ -928,6 +1075,77 @@ class TCA:
                     continue
                 return False, newCodeLine
         return True, newCodeLine
+
+    def checkIfListOfType(self, checkLine: str, type: str) -> int:
+        # TODO ADD SUPPORT FOR list() FUNCTION, (it turns iterables into lists, e.g. list('sd') -> ['s','d']
+        openingBrackets: int = 0
+        closingBrackets: int = 0
+
+        for char in checkLine:
+            if char == '[':
+                openingBrackets += 1
+                continue
+            if char == ']':
+                closingBrackets += 1
+                continue
+
+            # chop it by ,
+        if openingBrackets != closingBrackets or openingBrackets == 0:
+            return 1  # NOT A LIST
+
+        if openingBrackets == 1:  # There is only one list
+            listVals = checkLine.split(',')
+            listVals[0] = listVals[0][listVals[0].find('[') + 1:]  # remove the brackets
+            listVals[-1] = listVals[-1][:listVals[-1].find(']')]
+            for line in listVals:
+                if type == 'int':
+                    if not self.checkIfInteger(line):
+                        return 2  # NOT HOMOGENEOUS
+                elif type == 'str':
+                    if self.checkIfString(line) != 0:
+                        return 2  # NOT HOMOGENEOUS
+                elif type == 'float':
+                    if self.checkIfFloat(line) != 0:
+                        return 2  # NOT HOMOGENEOUS
+                elif type == 'bool':
+                    pass
+                    #if not self.checkIfBool(line):
+                     #   return 2  # NOT HOMOGENEOUS
+
+
+        else:  # CHECKS IF MULTIPLE LISTS ARE ADDED TOGETHER
+            lists = checkLine.split(']')
+            for index, subList in enumerate(lists):
+                if subList == '':  # If its correct, there will be an empty string at the end
+                    continue
+                bracketI = subList.find('[')
+                if bracketI == -1:
+                    return 1  # NOT A LIST
+
+                if index > 0:  # IF its not the first element, there must be a linking operator (+) in between the lists
+                    charsBtwnLists = list(subList[:bracketI])
+                    for char in charsBtwnLists:
+                        if char != ' ' and char != '+':
+                            return 3  # NOT A LIST, NOT A CORRECT LINKING OPERATOR BETWEEN THE LISTS
+
+                CurrList = subList[bracketI+1:]
+                CurrList = CurrList.split(',')
+                for line in CurrList:
+                    if type == 'int':
+                        if not self.checkIfInteger(line):
+                            return 2  # NOT HOMOGENEOUS
+                    elif type == 'str':
+                        if self.checkIfString(line) != 0:
+                            return 2  # NOT HOMOGENEOUS
+                    elif type == 'float':
+                        if self.checkIfFloat(line) != 0:
+                            return 2  # NOT HOMOGENEOUS
+                    elif type == 'bool':
+                        pass
+                        # if not self.checkIfBool(line):
+                        #   return 2  # NOT HOMOGENEOUS
+
+        return 0  # ALL GOOD
 
     def checkIfInteger(self, checkLine: str) -> bool:
         # TODO Modify so that it checks for common functions and their return types (e.g. find(random.randint() etc.)
@@ -975,7 +1193,7 @@ class TCA:
             # Check if non-string value
             elif not (character == ' ' or character == '+'):
                 return 2
-        return 0
+        return 0 # EVERYTHING IS CORRECT
 
     def checkIfFloat(self, checkLine: str) -> int:
         decimalPointOcurred: bool = False
@@ -1049,7 +1267,8 @@ class TCA:
             return False
         return (speechmarks + apostrophes) % 2 != 0
 
-    def checkForEscapeChar(self, line, index):  # Checks whether there is an escape character, or is it just a
+    def checkForEscapeChar(self, line: str, index: int) -> bool:
+        # Checks whether there is an escape character, or is it just a
         # backslash before a character with an index -> index
         backslashes = 0
         if index == 0:
@@ -1066,6 +1285,7 @@ class TCA:
 
     # This function will check if all variables were defined correctly (were given a type)
     def checkVariableDefinition(self, variable: Tuple[str, str], index: int, currentScope: Scope) -> bool:
+        # TODO REMOVE CHECKING IF IN THE SCOPES ABOVE, SEE EXAMPLE IN TEST1
         varName: str = variable[0]
         varType: str = variable[1]
         thisScope: Scope = currentScope
@@ -1088,15 +1308,70 @@ class TCA:
                 return False
 
         elif varType == '':  # if the var isn;t in this scope, and it has no type, check if its in the scope above
-            if thisScope.getScopeParent():
-                return self.checkVariableDefinition(variable, index, thisScope.getScopeParent())
-            else:
-                self.addErrorMessage(self.getNumLines()[index], " No type assigned for variable " + variable[0])
-                return True
-        elif thisScope.getScopeParent():  # otherwise, simply check if its in the scope above
-            return self.checkVariableDefinition(variable, index, thisScope.getScopeParent())
+            self.addErrorMessage(self.getNumLines()[index], " No type assigned for variable " + variable[0])
+            return True
+        else:
+            # If its a special var (List, Dict, Tuple), check if there is a full type defined
+            #  (common mistake: myList: List = []) <- List is not a full type
+            if varType[:4] == 'List':
+                if not self.checkIfCorrectListType(varType):
+                    self.addErrorMessage(self.getNumLines()[index], " The variable "
+                                         + varName + " was assigned an incorrect variable type (currently "
+                                         + varType + ", maybe add one of these: int, float, str, bool)")
+            elif varType[:4] == 'Dict':
+                if not self.checkIfCorrectDictType(varType):
+                    self.addErrorMessage(self.getNumLines()[index], " The variable "
+                                         + varName + " was assigned an incorrect variable type (currently "
+                                         + varType + ", maybe add one of these: int, float, str, bool)")
+            elif varType[:5] == 'Tuple':
+                if not self.checkIfCorrectTupleType(varType):
+                    self.addErrorMessage(self.getNumLines()[index], " The variable "
+                                         + varName + " was assigned an incorrect variable type (currently "
+                                         + varType + ", maybe add one of these: int, float, str, bool)")
+            return True
+        # THE CODE BELOW CHECKS FOR THE VAR IN THE SCOPES ABOVE
+        #    if thisScope.getScopeParent():
+        #        return self.checkVariableDefinition(variable, index, thisScope.getScopeParent())
+        #    else:
+        #        self.addErrorMessage(self.getNumLines()[index], " No type assigned for variable " + variable[0])
+        #        return True
+        #elif thisScope.getScopeParent():  # otherwise, simply check if its in the scope above
+        #    return self.checkVariableDefinition(variable, index, thisScope.getScopeParent())
 
-        else:  # otherwise, it hasn't appeared in the scopes above and it has a type => is a correct variable def
+        #else:  # otherwise, it hasn't appeared in the scopes above and it has a type => is a correct variable def
+        #    return True
+
+    def checkIfCorrectListType(self, listType: str) -> bool:
+        # FUTURE IMPROVEMENT: ALLOW MORE COMPLEX TYPES
+        myType = listType[4:]  # First 4 chars are L i s t
+        openBIndex = myType.find('[')
+        closeBIndex = myType.find(']')
+        if openBIndex == -1 or closeBIndex == -1:
+            return False
+        else:
+            # TODO POSSIBLE FURTHER CHECKING OF THE TYPE, E.G. Check if the type is int/str/float/bool
+            return True
+
+    def checkIfCorrectDictType(self, dictType: str) -> bool:
+        myType = dictType[4:]  # First 4 chars are D i c t
+        openBIndex = myType.find('[')
+        closeBIndex = myType.find(']')
+        if openBIndex == -1 or closeBIndex == -1:
+            return False
+
+        myType = dictType[openBIndex:closeBIndex]
+        if len(myType.split(',')) != 2:
+            return False
+
+        return True
+
+    def checkIfCorrectTupleType(self, tupleType: str) -> bool:
+        myType = tupleType[5:]  # First 5 chars are T u p l e
+        openBIndex = myType.find('[')
+        closeBIndex = myType.find(']')
+        if openBIndex == -1 or closeBIndex == -1:
+            return False
+        else:
             return True
 
     def printErrors(self):
@@ -1123,13 +1398,28 @@ class TCA:
             'Identifying variables for TCA failed! - (name and type)',
         )
 
-        assert self.identifyVariable('kupa  wowza  = thats pretty epic', 13, 1) == ('wowza', ''), (
+        assert self.identifyVariable('test  wowza  = thats pretty epic', 13, 1) == ('wowza', ''), (
             'Identifying variables for TCA failed! - (name)',
         )
 
         assert self.identifyVariable('myString:Tuple[str, int, ...] = \'#nice\'', 30, 1) == (
             'myString', 'Tuple[str,int,...]'), (
             'Identifying variables for TCA failed! - (name and type)',)
+
+        assert self.identifyVariable("testList[2] = 23", 12, 0) == ('testList', 'specialVar'), (
+            "Identifying variables for TCA failed! - (special var reference)")
+
+        assert self.checkIfSpecialVariable('myList', 'Dict[List[int], str]') == (True, 'Dict'), (
+            "Checking if variable is a special variable of type Dict failed!")
+
+        assert self.checkIfSpecialVariable('notSpecial', 'int') == (False, ''), (
+            'Checking if variable is special failed! (int is not special!)')
+
+        assert self.checkIfSpecialVariable('myTuple', 'Tuple[List[int], str, Dict[str, int])') == (True, 'Tuple'), (
+            'Checking if variable is a special variable of type Tuple failed!')
+
+        assert self.checkIfSpecialVariable('BublinJechane', 'Dict[List[str], int]') == (True, 'Dict'), (
+            'Checking if variable is a special variable of type Dict failed!')
 
         assert self.findVariableReferenceOnLine("ooga += 2 - 3*ooga", "ooga") == [0, 14], ("Finding variable "
                                                                                            "references on a "
@@ -1142,6 +1432,27 @@ class TCA:
 
         assert self.findVariableReferenceOnLine("thisVar >= smallVar", "smallVar") == [11], (
             "Finding variable references on a specific line for a comparison failed!",)
+
+        assert self.removeAllVarsInLine([Variable('Bublin', 'int', 0), Variable('newVar', 'str', 10)],
+                                        'Bublin += newVar') == ' += ', (
+            'Removing all Variables in a line failed!',) # TODO check if keeeping the spaces is necessary
+
+        assert self.checkIfListOfType("[23,45,6] + [ , 8-7//4, 23]", 'int') == 0, ("Checking if a code-line forms a "
+                                                                                   "homogeneous List failed!",)
+
+        assert self.checkIfListOfType("[23,45,6] + [] + [ , 8-7//4, 'sd']", 'int') == 2, ("Checking if a code-line"
+                                                                                          " forms a homogeneous List "
+                                                                                          "failed!",)
+
+        assert self.checkIfListOfType("['th', 'is'] + [' is a', 'stringList']", 'str') == 0, ("Checking if a code-line"
+                                                                                              " forms a homogeneous "
+                                                                                              "List failed!",)
+
+        assert self.checkIfListOfType("[2.7,23-4/4, 87.6//4] + [23.1]", 'float') == 0, ("Checking if a code-line forms "
+                                                                                        "a homogeneous List failed!",)
+
+        assert self.checkIfListOfType("[28.4-5**45, 87.6//4] + [76.4,", 'float') == 1, ("Checking if a code-line forms "
+                                                                                        "a homogeneous List failed!",)
 
         assert self.checkIfInteger("-5 + 2 // 3"), ("Checking if only integer-like operators"
                                                     " and chars used failed!",)
@@ -1157,6 +1468,13 @@ class TCA:
 
         assert self.checkIfFloat('2-d') == 1, ("Checking if only float-like operators and chars used failed!",)
 
-        assert not self.checkForEscapeChar('\\\\se\'', 2), ("Checking for Escape Character failed!",)
+        assert not self.checkForEscapeChar('\\\\se\'', 2), ("Checking for Escape Character before a sing with "
+                                                            "index i failed!",)
+
+        assert self.checkForEscapeChar('\\\'not a string\'', 1), ("Checking for Escape Character before "
+                                                                  "sign with index i failed!",)
 
         assert self.checkIfInString('\'au\'', 1), ("Checking if character with index i is in a string failed!",)
+
+        assert not self.checkIfInString('\'this is not a string', 1), ("Checking if character with index i is in a"
+                                                                       " string failed!")
