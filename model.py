@@ -39,5 +39,8 @@ class Model:
         for i in range(len(a)):
             print(a[i], [str(item) for item in c[i]], b[i])
 
-        errors = self._tca.getErrorMessages()[:]
         self._tca.printErrors()
+        self._tca.sortErrors()
+
+    def getErrors(self) -> List[str]:
+        return self._tca.getErrorMessages()[:]

@@ -49,16 +49,22 @@ class View:
 
     def saveFile(self) -> None:
         print(type(self._scroll.get("1.0", tk.END)))    # first parameter (in scroll.get): line.character
-        f = open('programs/' + self.getFileName() + ".py", "w+")
-        f.write(self._scroll.get("1.0", tk.END))
-        f.close()
+        try:
+            f = open('programs/' + self.getFileName() + ".py", "w+")
+            f.write(self._scroll.get("1.0", tk.END))
+            f.close()
+        except FileNotFoundError:
+            print("No such file or directory")
 
     def openFile(self) -> None:
-        f = open(self.getFileName()+".py", "r+")
-        self._scroll.delete("1.0", tk.END)
-        self._scroll.insert(tk.END, f.read())
-        # self._scroll.text = f.read()
-        f.close()
+        try:
+            f = open(self.getFileName()+".py", "r+")
+            self._scroll.delete("1.0", tk.END)
+            self._scroll.insert(tk.END, f.read())
+            # self._scroll.text = f.read()
+            f.close()
+        except FileNotFoundError:
+            print("No such file or directory")
 
     def openFileByName(self, name: str) -> None:
         f = open(name + ".py", "r")

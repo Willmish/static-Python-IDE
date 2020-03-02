@@ -11,7 +11,7 @@ class Controller:
 
     def runTCA(self, lines: List[str]):
         self._model.runTCA(lines)
-        errors: List[str] = self._model._tca.getErrorMessages()
+        errors: List[str] = self._model.getErrors()
         self._view.addErrors(errors)
 
 
