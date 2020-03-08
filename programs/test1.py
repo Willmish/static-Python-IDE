@@ -118,4 +118,5 @@ def newMethod():
 newMethod()
 print(this, type(this))
 
-
+myString = 'sd'
+print(myString[:4])

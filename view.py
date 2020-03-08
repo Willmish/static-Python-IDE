@@ -3,11 +3,60 @@ import tkinter.scrolledtext as tkst
 from typing import List
 
 
-'''This is not my code, credit of:
+# This is a scrollable text widget
+class ScrollText(tk.Frame):
+    def __init__(self, master, *args, **kwargs):
+        tk.Frame.__init__(self, *args, **kwargs)
+        self.text = tk.Text(self, bg='#2b2b2b', foreground="#d1dce8", insertbackground='white',
+                            selectbackground="blue", width=120, height=30)
+
+        self.scrollbar = tk.Scrollbar(self, orient=tk.VERTICAL, command=self.text.yview)
+        self.text.configure(yscrollcommand=self.scrollbar.set)
+
+        self.numberLines = TextLineNumbers(self, width=40, bg='#313335')
+        self.numberLines.attach(self.text)
+
+        self.scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        self.numberLines.pack(side=tk.LEFT, fill=tk.Y, padx=(5, 0))
+        self.text.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True)
+
+        self.text.bind("<Key>", self.onPressDelay)
+        self.text.bind("<Button-1>", self.numberLines.redraw)
+        self.scrollbar.bind("<Button-1>", self.onScrollPress)
+        self.text.bind("<MouseWheel>", self.onPressDelay)
+
+    def onScrollPress(self, *args):
+        self.scrollbar.bind("<B1-Motion>", self.numberLines.redraw)
+
+    def onScrollRelease(self, *args):
+        self.scrollbar.unbind("<B1-Motion>", self.numberLines.redraw)
+
+    def onPressDelay(self, *args):
+        self.after(2, self.numberLines.redraw)
+
+    def get(self, *args, **kwargs):
+        return self.text.get(*args, **kwargs)
+
+    def insert(self, *args, **kwargs):
+        return self.text.insert(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        return self.text.delete(*args, **kwargs)
+
+    def index(self, *args, **kwargs):
+        return self.text.index(*args, **kwargs)
+
+    def redraw(self):
+        self.numberLines.redraw()
+
+
+'''THIS CODE IS CREDIT OF Bryan Oakley (With minor visual modifications on my side): 
 https://stackoverflow.com/questions/16369470/tkinter-adding-line-number-to-text-widget'''
+
+
 class TextLineNumbers(tk.Canvas):
     def __init__(self, *args, **kwargs):
-        tk.Canvas.__init__(self, *args, **kwargs)
+        tk.Canvas.__init__(self, *args, **kwargs, highlightthickness=0)
         self.textwidget = None
 
     def attach(self, text_widget):
@@ -23,46 +72,60 @@ class TextLineNumbers(tk.Canvas):
             if dline is None: break
             y = dline[1]
             linenum = str(i).split(".")[0]
-            self.create_text(2,y,anchor="nw", text=linenum)
+            self.create_text(2, y, anchor="nw", text=linenum, fill="#606366")
             i = self.textwidget.index("%s+1line" % i)
-
-
-class ScrollText:
-    def __init__(self, *args, **kwargs):
-        tk.Text.__init__(*args, **kwargs)
 
 
 class View:
     def __init__(self, controller):
         self._root: tk.Tk = tk.Tk()
-        self._scroll: tkst.ScrolledText = None
+        self._scroll: ScrollText = None
         #self._frame = tk.Frame(self._root)
-        self.lineNo: TextLineNumbers = None
         self.controller = controller
         self._errorMessages: tkst.ScrolledText = None
+
+    def getScrollData(self, startIndex: str, endIndex: str) -> str:
+        return self._scroll.get(startIndex, endIndex)
+
+    def getErrorMsgData(self, startIndex: str, endIndex: str) -> str:
+        return self._errorMessages.get(startIndex, endIndex)
+
+    def deleteAllInfoScroll(self) -> None:
+        self._scroll.delete("1.0", tk.END)
+
+    def deleteAllInfoErrorMsg(self) -> None:
+        self._errorMessages.delete("1.0", tk.END)
+
+    def insertIntoScroll(self, location: str, data: str):
+        self._scroll.insert(location, data)
+
+    def insertIntoErrorMsg(self, location: str, data: List[str]):
+        self._errorMessages.insert(location, data)
 
     def runTCA(self) -> None:
         print("TCA running!")
         # Split the text into separate lines
-        lines: List = self._scroll.get("1.0", tk.END).splitlines()
+        lines: List = self.getScrollData("1.0", tk.END).splitlines()
         self.controller.runTCA(lines)
 
     def saveFile(self) -> None:
-        print(type(self._scroll.get("1.0", tk.END)))    # first parameter (in scroll.get): line.character
+        # print(type(self._scroll.get("1.0", tk.END)))    # first parameter (in scroll.get): line.character
         try:
             f = open('programs/' + self.getFileName() + ".py", "w+")
-            f.write(self._scroll.get("1.0", tk.END))
+            f.write(self.getScrollData("1.0", tk.END))
             f.close()
+            self._scroll.redraw()
         except FileNotFoundError:
             print("No such file or directory")
 
     def openFile(self) -> None:
         try:
             f = open(self.getFileName()+".py", "r+")
-            self._scroll.delete("1.0", tk.END)
-            self._scroll.insert(tk.END, f.read())
+            self.deleteAllInfoScroll()
+            self.insertIntoScroll(tk.END, f.read())
             # self._scroll.text = f.read()
             f.close()
+            self._scroll.redraw()
         except FileNotFoundError:
             print("No such file or directory")
 
@@ -71,6 +134,7 @@ class View:
         self._scroll.delete("1.0", tk.END)
         self._scroll.insert(tk.END, f.read())
         f.close()
+        self._scroll.redraw()
 
     @staticmethod
     def getFileName() -> str:
@@ -99,25 +163,30 @@ class View:
         return 'break'
 
     def createGUI(self):
-
+        self._root.configure(background='#3c3f41')
         # Create the Toolbar:
-        label = tk.Label(self._root, text="IDE", bg="#ffe211")
-        label.pack(side=tk.TOP)
-        saveButton = tk.Button(self._root, text="save", command=self.saveFile)
-        saveButton.pack(side=tk.TOP)
-        TCAButton =tk.Button(self._root, text="TCA", command=self.runTCA)
-        TCAButton.pack(side=tk.TOP)
-        openButton = tk.Button(self._root, text="open", command=self.openFile)
-        openButton.pack(side=tk.TOP)
+        topFrame = tk.Frame(self._root, bg='#3c3f41')
+        # label = tk.Label(topFrame, text="IDE", bg="#ffe211")
+        # label.pack(side=tk.TOP)
+        saveButton = tk.Button(topFrame, text="save", command=self.saveFile, bg='#4a4d4f', fg="#d1dce8")
+        saveButton.pack(side=tk.LEFT, padx=(5, 5), pady=(5, 5))
+        TCAButton = tk.Button(topFrame, text="TCA", command=self.runTCA, bg='#4a4d4f', fg="#d1dce8")
+        TCAButton.pack(side=tk.LEFT, padx=(5, 5), pady=(5, 5))
+        openButton = tk.Button(topFrame, text="open", command=self.openFile, bg='#4a4d4f', fg="#d1dce8")
+        openButton.pack(side=tk.LEFT, padx=(5, 5), pady=(5, 5))
         # Create the text editor:
-        self._scroll = tkst.ScrolledText(self._root, bg='black', foreground="white",
-                                         insertbackground='white', selectbackground="blue", width=120, height=30)
-        self._errorMessages = tkst.ScrolledText(self._root, width=130, height=10, state="disabled")
-        #self.lineNo = TextLineNumbers(self._scroll.frame)
-        # self.lineNo.attach(self._scroll)
-        self._errorMessages.pack(side=tk.BOTTOM)
-        self._scroll.pack(side=tk.BOTTOM)
-        #self.lineNo.pack()
+        self._root.title('ShymIDE')
+
+        topFrame.pack(side=tk.TOP, pady=(0, 5), fill=tk.X, expand=True, anchor='n')
+
+        self._scroll = ScrollText(self._root, bg='#3c3f41')
+        self._errorMessages = tkst.ScrolledText(self._root, width=130, height=10, state="disabled", bg='#2b2b2b',
+                                                fg='#d1dce8')
+
+        # fill - tells the manager how to expand - only use the space in the x, y or both directions
+        # expand - assign additional space to a slave if the master is resized
+        self._scroll.pack(side=tk.TOP, fill=tk.BOTH, expand=True, padx=(10, 10), anchor='n')
+        self._errorMessages.pack(side=tk.TOP, fill=tk.BOTH, expand=True, padx=(15, 15), pady=(15, 5), anchor='n')
         # change tab to n spaces
         self._scroll.bind("<Tab>", self.tab)
 
@@ -128,5 +197,17 @@ class View:
             self._errorMessages.insert(tk.END, error + '\n')
         self._errorMessages['state'] = 'disabled'
 
+    def addMessage(self, msg: str) -> None:
+        self._errorMessages.configure(state='normal')
+        self.deleteAllInfoErrorMsg()
+        self.insertIntoScroll(tk.END, msg)
+        self._errorMessages.configure(state='disabled')
+
+    def getInputFromConsole(self) -> str:
+        self._errorMessages.configure(state='normal')
+        # TODO wait for enter press
+        self._errorMessages.configure(state='disabled')
+
     def mainLoop(self):
+        self._root.after(200, self._scroll.redraw)
         self._root.mainloop()

@@ -137,7 +137,7 @@ class TupleVariable(Variable):
             return self._variableTypes
 
         else:
-            return list(self._type)
+            return self._type
 
     def getTypeOfIndex(self, index: int) -> str:
         if self._variableTypes:
@@ -277,6 +277,7 @@ class TCA:
 
         elif 'Tuple' in variableType[:5]:
             tupleType = variableType[variableType.find('[')+1:].split(',')
+            tupleType[-1] = tupleType[-1][:-1]
             self.addTupleVariableUseToken(lineIndex, variableIndex, variableName, tupleType)
         # TODO FIX TUPLE TYPE CHECKING FOR TYPE WITH SPACES, SAME FOR DICTIONARY (e.g. mydict: Dict[str, int = {}
         # will be recognised as a variable with name int and no type
@@ -646,7 +647,7 @@ class TCA:
                                                      'bool': 'boolean variable',
                                                      'List': 'item in the List',
                                                      'Dict': 'value in the Dictionary',
-                                                     'Tuple': 'NONE FOR NOW'}
+                                                     'Tuple': 'item in the Tuple'}
             errorMsgReference: str = 'variable'
             if useTypeTokens[index] == '':
                 continue
@@ -736,7 +737,86 @@ class TCA:
                 # ------------------
                 # ----- TUPLES -----
                 elif 't' in useTypeTokens[index]:
-                    pass
+                    tupleType = definedVar.getType()
+                    checkTuple = self.checkIfAllVarsOfType(tupleType, useTokens[index], line)
+                    if checkTuple[0]:
+                        print(self.getNumLines()[index], " All vars same type")
+                        checkLine = checkTuple[1]
+                        checkLine = self.removeAllVarsInLine(useTokens[index], checkLine)
+                        # remove all occurrences of the var in the line ^
+                    else:
+                        print(self.getNumLines()[index], " Not All vars same type")
+
+                        self.addErrorMessage(self.getNumLines()[index], 'TYPE ERROR: ' + errorMsgReference + ' '
+                                             + definedVar.getName() + ' was assigned a non ' + tupleType + ' value on '
+                                                                                                           'this line. '
+                                                                                                           '(A variable of different type was used.)')
+                        continue
+                    checkLine = checkLine[checkLine.find('=') + 1:]
+                    checkVal = self.checkIfTupleOfType(checkLine, tupleType)
+                    if checkVal == 0:
+                        continue
+                    elif checkVal == 1:
+                        self.addErrorMessage(self.getNumLines()[index], "TYPE ERROR: Missing brackets in the"
+                                                                        " definition of a tuple "
+                                                                        "variable " + definedVar.getName())
+                        continue
+                    elif checkVal == 2:
+                        self.addErrorMessage(self.getNumLines()[index], "TYPE ERROR: Number of elements not matching "
+                                                                        "the type in the definition of a tuple "
+                                                                        "variable " + definedVar.getName())
+                        continue
+                    elif checkVal == 3:
+                        self.addErrorMessage(self.getNumLines()[index], "TYPE ERROR: " + errorMsgReference + ' ' +
+                                             definedVar.getName() + " is of a different type then specified in" +
+                                             " the definition (should be a string)")
+                        continue
+                    elif checkVal == 4:
+                        self.addErrorMessage(self.getNumLines()[index], "TYPE ERROR: " + errorMsgReference + ' ' +
+                                             definedVar.getName() + " is of a different type then specified in" +
+                                             " the definition (should be a string)")
+                        continue
+                    elif checkVal == 5:
+                        self.addErrorMessage(self.getNumLines()[index], "TYPE ERROR: " + errorMsgReference + ' ' +
+                                             definedVar.getName() + " is of a different type then specified in" +
+                                             " the definition (should be an integer)")
+                        continue
+                    elif checkVal == 6:
+                        self.addErrorMessage(self.getNumLines()[index], "TYPE ERROR: " + errorMsgReference + ' ' +
+                                             definedVar.getName() + " is of a different type then specified in" +
+                                             " the definition (should be a float)")
+                        continue
+                    elif checkVal == 7:
+                        self.addErrorMessage(self.getNumLines()[index], "TYPE ERROR: " + errorMsgReference + ' ' +
+                                             definedVar.getName() + " is of a different type then specified in" +
+                                             " the definition (should be a float)")
+                        continue
+                    elif checkVal == 8:
+                        self.addErrorMessage(self.getNumLines()[index], "TYPE ERROR: " + errorMsgReference + ' ' +
+                                             definedVar.getName() + " is of a different type then specified in" +
+                                             " the definition (should be a string)")
+                        continue
+                    elif checkVal == 9:
+                        self.addErrorMessage(self.getNumLines()[index], "TYPE ERROR: " + errorMsgReference + ' ' +
+                                             definedVar.getName() + " is of a different type then specified in" +
+                                             " the definition (should be a string)")
+                        continue
+                    elif checkVal == 10:
+                        self.addErrorMessage(self.getNumLines()[index], "TYPE ERROR: " + errorMsgReference + ' ' +
+                                             definedVar.getName() + " is of a different type then specified in" +
+                                             " the definition (should be an integer)")
+                        continue
+                    elif checkVal == 11:
+                        self.addErrorMessage(self.getNumLines()[index], "TYPE ERROR: " + errorMsgReference + ' ' +
+                                             definedVar.getName() + " is of a different type then specified in" +
+                                             " the definition (should be a float)")
+                        continue
+                    elif checkVal == 12:
+                        self.addErrorMessage(self.getNumLines()[index], "TYPE ERROR: " + errorMsgReference + ' ' +
+                                             definedVar.getName() + " is of a different type then specified in" +
+                                             " the definition (should be a float)")
+                        continue
+
                 # ------------------
                 # -----INTEGERS-----
                 if definedVar.getType() == 'int':
@@ -1076,7 +1156,82 @@ class TCA:
                 return False, newCodeLine
         return True, newCodeLine
 
-    def checkIfListOfType(self, checkLine: str, type: str) -> int:
+    def checkIfDictOfType(self, checkLine: str, varType: str) -> int:
+        pass
+
+    def checkIfTupleOfType(self, checkLine: str, varType: List[str]) -> int:
+        openingParantheses: int = 0
+        closingParantheses: int = 0
+        for char in checkLine:
+            if char == '(':
+                openingParantheses += 1
+                continue
+
+            if char == ')':
+                closingParantheses += 1
+                continue
+
+        if openingParantheses != 1 or closingParantheses != 1:
+            return 1  # NOT A TUPLE
+
+        tupleVals = checkLine.split(',')
+        tupleVals[0] = tupleVals[0][tupleVals[0].find('(') + 1:]  # remove the brackets
+        tupleVals[-1] = tupleVals[-1][:tupleVals[-1].find(')')]
+        # IF REPEATING TYPE
+        if type(varType) != list:
+            for t in tupleVals:
+                if varType == 'str':
+                    checkVal = self.checkIfString(t)
+                    if checkVal == 1:
+                        return 3  # NOT A STRING CHAR
+                    elif checkVal == 2:
+                        return 4  # NOT A STRING CHAR
+
+                elif varType == 'int':
+                    if not self.checkIfInteger(t):
+                        return 5  # NOT AN INTEGER
+
+                elif varType == 'float':
+                    checkVal = self.checkIfFloat(t)
+                    if checkVal == 1:
+                        return 6  # NON float chars used
+
+                    elif checkVal == 2:
+                        return 7  # Integer chars used, but no float chars
+
+                elif varType == 'bool':
+                    pass  # TODO boolean checking
+            return 0  # ALL GOOD
+        # ----------- NON REPEATING TYPES -----------
+        if len(tupleVals) != len(varType):
+            return 2  # Incorrect number of values in the tuple
+
+        for i, t in enumerate(varType):
+            if t == 'str':
+                checkVal = self.checkIfString(tupleVals[i])
+                if checkVal == 1:
+                    return 8
+                elif checkVal == 2:
+                    return 9
+
+            elif t == 'int':
+                if not self.checkIfInteger(tupleVals[i]):
+                    return 10  # NOT AN INTEGER
+
+            elif t == 'float':
+                checkVal = self.checkIfFloat(tupleVals[i])
+
+                if checkVal == 1:
+                    return 11  # NON float chars used
+
+                elif checkVal == 2:
+                    return 12  # Integer chars used, but no float chars
+
+            elif varType == 'bool':
+                pass  # TODO boolean checking
+            # TODO FINISH TUPLES
+
+    def checkIfListOfType(self, checkLine: str, varType: str) -> int:
         # TODO ADD SUPPORT FOR list() FUNCTION, (it turns iterables into lists, e.g. list('sd') -> ['s','d']
         openingBrackets: int = 0
         closingBrackets: int = 0
@@ -1098,16 +1253,16 @@ class TCA:
             listVals[0] = listVals[0][listVals[0].find('[') + 1:]  # remove the brackets
             listVals[-1] = listVals[-1][:listVals[-1].find(']')]
             for line in listVals:
-                if type == 'int':
+                if varType == 'int':
                     if not self.checkIfInteger(line):
                         return 2  # NOT HOMOGENEOUS
-                elif type == 'str':
+                elif varType == 'str':
                     if self.checkIfString(line) != 0:
                         return 2  # NOT HOMOGENEOUS
-                elif type == 'float':
+                elif varType == 'float':
                     if self.checkIfFloat(line) != 0:
                         return 2  # NOT HOMOGENEOUS
-                elif type == 'bool':
+                elif varType == 'bool':
                     pass
                     #if not self.checkIfBool(line):
                      #   return 2  # NOT HOMOGENEOUS
@@ -1131,16 +1286,16 @@ class TCA:
                 CurrList = subList[bracketI+1:]
                 CurrList = CurrList.split(',')
                 for line in CurrList:
-                    if type == 'int':
+                    if varType == 'int':
                         if not self.checkIfInteger(line):
                             return 2  # NOT HOMOGENEOUS
-                    elif type == 'str':
+                    elif varType == 'str':
                         if self.checkIfString(line) != 0:
                             return 2  # NOT HOMOGENEOUS
-                    elif type == 'float':
+                    elif varType == 'float':
                         if self.checkIfFloat(line) != 0:
                             return 2  # NOT HOMOGENEOUS
-                    elif type == 'bool':
+                    elif varType == 'bool':
                         pass
                         # if not self.checkIfBool(line):
                         #   return 2  # NOT HOMOGENEOUS
@@ -1192,7 +1347,9 @@ class TCA:
                 continue
             # Check if non-string value
             elif not (character == ' ' or character == '+'):
-                return 2
+                if apostrophes == 0 and speechmarks == 0:
+                    return 1  # NOT A STRING
+                return 2  # INCORRECT LINKING OPERATOR
         return 0 # EVERYTHING IS CORRECT
 
     def checkIfFloat(self, checkLine: str) -> int:
@@ -1343,7 +1500,7 @@ class TCA:
 
     def checkIfCorrectListType(self, listType: str) -> bool:
         # FUTURE IMPROVEMENT: ALLOW MORE COMPLEX TYPES
-        myType = listType[4:]  # First 4 chars are L i s t
+        myType = listType[3:]  # First 4 chars are L i s t
         openBIndex = myType.find('[')
         closeBIndex = myType.find(']')
         if openBIndex == -1 or closeBIndex == -1:
@@ -1353,7 +1510,7 @@ class TCA:
             return True
 
     def checkIfCorrectDictType(self, dictType: str) -> bool:
-        myType = dictType[4:]  # First 4 chars are D i c t
+        myType = dictType[3:]  # First 4 chars are D i c t
         openBIndex = myType.find('[')
         closeBIndex = myType.find(']')
         if openBIndex == -1 or closeBIndex == -1:
@@ -1366,7 +1523,7 @@ class TCA:
         return True
 
     def checkIfCorrectTupleType(self, tupleType: str) -> bool:
-        myType = tupleType[5:]  # First 5 chars are T u p l e
+        myType = tupleType[4:]  # First 5 chars are T u p l e
         openBIndex = myType.find('[')
         closeBIndex = myType.find(']')
         if openBIndex == -1 or closeBIndex == -1:

@@ -22,7 +22,6 @@ if __name__ == '__main__':
     
     controller._view.createGUI()
     controller._view.openFileByName('programs/testFile')
-    print(controller._view._scroll.index("@0,0"))
     controller._view.mainLoop()
 
 
