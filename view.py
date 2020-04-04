@@ -7,13 +7,13 @@ from typing import List
 class ScrollText(tk.Frame):
     def __init__(self, master, *args, **kwargs):
         tk.Frame.__init__(self, *args, **kwargs)
-        self.text = tk.Text(self, bg='#2b2b2b', foreground="#d1dce8", insertbackground='white',
-                            selectbackground="blue", width=120, height=30)
+        self.text: tk.Text = tk.Text(self, bg='#2b2b2b', foreground="#d1dce8", insertbackground='white',
+                                     selectbackground="blue", width=120, height=30)
 
-        self.scrollbar = tk.Scrollbar(self, orient=tk.VERTICAL, command=self.text.yview)
+        self.scrollbar: tk.Scrollbar = tk.Scrollbar(self, orient=tk.VERTICAL, command=self.text.yview)
         self.text.configure(yscrollcommand=self.scrollbar.set)
 
-        self.numberLines = TextLineNumbers(self, width=40, bg='#313335')
+        self.numberLines: TextLineNumbers = TextLineNumbers(self, width=40, bg='#313335')
         self.numberLines.attach(self.text)
 
         self.scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
@@ -24,14 +24,16 @@ class ScrollText(tk.Frame):
         self.text.bind("<Button-1>", self.numberLines.redraw)
         self.scrollbar.bind("<Button-1>", self.onScrollPress)
         self.text.bind("<MouseWheel>", self.onPressDelay)
+        # change tab to n spaces
+        self.text.bind("<Tab>", self.tab)
 
-    def onScrollPress(self, *args):
+    def onScrollPress(self, *args) -> None:
         self.scrollbar.bind("<B1-Motion>", self.numberLines.redraw)
 
-    def onScrollRelease(self, *args):
+    def onScrollRelease(self, *args) -> None:
         self.scrollbar.unbind("<B1-Motion>", self.numberLines.redraw)
 
-    def onPressDelay(self, *args):
+    def onPressDelay(self, *args) -> None:
         self.after(2, self.numberLines.redraw)
 
     def get(self, *args, **kwargs):
@@ -48,6 +50,29 @@ class ScrollText(tk.Frame):
 
     def redraw(self):
         self.numberLines.redraw()
+
+    '''Original code of: https://stackoverflow.com/users/5321910/joey
+    import tkinter as tk
+
+    _root = tk.Tk()
+    text = tk.Text(_root)
+    text.pack()
+
+    def tab(arg):
+        print("tab pressed")
+        text.insert(tk.INSERT, " " * 4)
+        return 'break'
+
+    text.bind("<Tab>", tab)
+    _root.mainloop()
+    '''
+
+    # My version of a similar function:
+    def tab(self, event: tk.Event) -> str:
+        self.insert(tk.INSERT, 4 * " ")
+        # In order to prevent Tkinter from running
+        # additional events
+        return 'break'
 
 
 '''THIS CODE IS CREDIT OF Bryan Oakley (With minor visual modifications on my side): 
@@ -67,8 +92,8 @@ class TextLineNumbers(tk.Canvas):
         self.delete("all")
 
         i = self.textwidget.index("@0,0")
-        while True :
-            dline= self.textwidget.dlineinfo(i)
+        while True:
+            dline = self.textwidget.dlineinfo(i)
             if dline is None: break
             y = dline[1]
             linenum = str(i).split(".")[0]
@@ -76,11 +101,14 @@ class TextLineNumbers(tk.Canvas):
             i = self.textwidget.index("%s+1line" % i)
 
 
+'''END OF Bryan Oakley's CODE'''
+
+
 class View:
     def __init__(self, controller):
         self._root: tk.Tk = tk.Tk()
         self._scroll: ScrollText = None
-        #self._frame = tk.Frame(self._root)
+        # self._frame = tk.Frame(self._root)
         self.controller = controller
         self._errorMessages: tkst.ScrolledText = None
 
@@ -120,7 +148,7 @@ class View:
 
     def openFile(self) -> None:
         try:
-            f = open(self.getFileName()+".py", "r+")
+            f = open(self.getFileName() + ".py", "r+")
             self.deleteAllInfoScroll()
             self.insertIntoScroll(tk.END, f.read())
             # self._scroll.text = f.read()
@@ -139,28 +167,6 @@ class View:
     @staticmethod
     def getFileName() -> str:
         return input("Specify filename:")
-
-    '''Original code of: https://stackoverflow.com/users/5321910/joey
-    import tkinter as tk
-
-    _root = tk.Tk()
-    text = tk.Text(_root)
-    text.pack()
-
-    def tab(arg):
-        print("tab pressed")
-        text.insert(tk.INSERT, " " * 4)
-        return 'break'
-    
-    text.bind("<Tab>", tab)
-    _root.mainloop()
-    '''
-    # My version of a similar function:
-    def tab(self, event: tk.Event) -> str:
-        self._scroll.insert(tk.INSERT, 4*" ")
-        # In order to prevent Tkinter from running
-        # additional events
-        return 'break'
 
     def createGUI(self):
         self._root.configure(background='#3c3f41')
@@ -187,8 +193,6 @@ class View:
         # expand - assign additional space to a slave if the master is resized
         self._scroll.pack(side=tk.TOP, fill=tk.BOTH, expand=True, padx=(10, 10), anchor='n')
         self._errorMessages.pack(side=tk.TOP, fill=tk.BOTH, expand=True, padx=(15, 15), pady=(15, 5), anchor='n')
-        # change tab to n spaces
-        self._scroll.bind("<Tab>", self.tab)
 
     def addErrors(self, errors: List[str]):
         self._errorMessages['state'] = 'normal'

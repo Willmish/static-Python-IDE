@@ -21,7 +21,7 @@ if __name__ == '__main__':
     controller._model._tca.unitTests()
     
     controller._view.createGUI()
-    controller._view.openFileByName('programs/testFile')
+    controller._view.openFileByName('programs/vidTest')
     controller._view.mainLoop()
 
 
