@@ -3,6 +3,7 @@ import tkinter.scrolledtext as tkst
 from typing import List
 
 
+
 # This is a scrollable text widget
 class ScrollText(tk.Frame):
     def __init__(self, master, *args, **kwargs):
@@ -105,6 +106,8 @@ class TextLineNumbers(tk.Canvas):
 
 
 class View:
+    PLATFORM = None
+
     def __init__(self, controller):
         self._root: tk.Tk = tk.Tk()
         self._scroll: ScrollText = None
