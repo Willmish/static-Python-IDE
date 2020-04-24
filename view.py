@@ -3,9 +3,11 @@ import tkinter.scrolledtext as tkst
 from typing import List
 
 
-
+# TODO ADD COLOR SCHEMES TO CONFIG FILE
+# TODO ADD CONFIG WINDOW
 # This is a scrollable text widget
 class ScrollText(tk.Frame):
+    PLATFORM = None
     def __init__(self, master, *args, **kwargs):
         tk.Frame.__init__(self, *args, **kwargs)
         self.text: tk.Text = tk.Text(self, bg='#2b2b2b', foreground="#d1dce8", insertbackground='white',
@@ -21,18 +23,29 @@ class ScrollText(tk.Frame):
         self.numberLines.pack(side=tk.LEFT, fill=tk.Y, padx=(5, 0))
         self.text.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True)
 
-        self.text.bind("<Key>", self.onPressDelay)
-        self.text.bind("<Button-1>", self.numberLines.redraw)
-        self.scrollbar.bind("<Button-1>", self.onScrollPress)
-        self.text.bind("<MouseWheel>", self.onPressDelay)
-        # change tab to n spaces
-        self.text.bind("<Tab>", self.tab)
+        if ScrollText.PLATFORM == 'Windows':
+            self.text.bind("<Key>", self.onPressDelay)
+            self.text.bind("<Button-1>", self.numberLines.redraw)
+            self.scrollbar.bind("<B1-Motion>", self.onPressDelay)
+            self.scrollbar.bind("<Button-1>", self.onPressDelay)
+            self.text.bind("<MouseWheel>", self.onPressDelay)
+            # change tab to n spaces
+            self.text.bind("<Tab>", self.tab)
+        elif ScrollText.PLATFORM == 'Linux':
+            self.text.bind("<Key>", self.onPressDelay)
+            self.text.bind("<Button-1>", self.numberLines.redraw)
+            self.scrollbar.bind("<B1-Motion>", self.onPressDelay)
+            self.scrollbar.bind("<Button-1>", self.onPressDelay)
+            self.text.bind("<Button-4>", self.onPressDelay)  # Scroll up
+            self.text.bind("<Button-5>", self.onPressDelay)  # Scroll down
+            # change tab to n spaces
+            self.text.bind("<Tab>", self.tab)
 
-    def onScrollPress(self, *args) -> None:
-        self.scrollbar.bind("<B1-Motion>", self.numberLines.redraw)
+    #def onScrollPress(self, *args) -> None:
+    #    self.scrollbar.bind("<B1-Motion>", self.numberLines.redraw)
 
-    def onScrollRelease(self, *args) -> None:
-        self.scrollbar.unbind("<B1-Motion>", self.numberLines.redraw)
+    #def onScrollRelease(self, *args) -> None:
+    #    self.scrollbar.unbind("<B1-Motion>", self.numberLines.redraw)
 
     def onPressDelay(self, *args) -> None:
         self.after(2, self.numberLines.redraw)
@@ -120,6 +133,9 @@ class View:
 
     def getErrorMsgData(self, startIndex: str, endIndex: str) -> str:
         return self._errorMessages.get(startIndex, endIndex)
+
+    def setPlatformInfo(self):
+        ScrollText.PLATFORM = View.PLATFORM
 
     def deleteAllInfoScroll(self) -> None:
         self._scroll.delete("1.0", tk.END)

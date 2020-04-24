@@ -672,12 +672,13 @@ class TCA:
                     if 's' not in useTypeTokens[index]:
                         checkVal = self.checkIfDictKeyCorrect(definedVar, line)
                         if checkVal == 1:
-                            self.addErrorMessage(self.getNumLines()[index], "Incorrect item reference (brackets) for di"
-                                                                            "ctionary variable " + definedVar.getName())
+                            self.addErrorMessage(self.getNumLines()[index], f"Incorrect item reference (brackets) for di"
+                                                                            f"ctionary variable  {definedVar.getName()}")
                         elif checkVal != 0:
-                            self.addErrorMessage(self.getNumLines()[index], "TYPE ERROR: Key of a dictionary variable "
-                                                 + definedVar.getName() + " is of a different type than specified in th"
-                                                                          "e definition(" + definedVar.getType() +')')
+                            self.addErrorMessage(self.getNumLines()[index], f"TYPE ERROR: Key of a dictionary variable "
+                                                                            f"{definedVar.getName()}  is of a different"
+                                                                            f" type than specified in the definition("
+                                                                            f"{definedVar.getType()})")
                 elif isinstance(definedVar, TupleVariable):
                     errorMsgReference = errorMsgReferenceDict['Tuple']
 

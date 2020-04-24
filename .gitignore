@@ -1,3 +1,5 @@
 *.xml
 *test1*
 venv
+.idea/
+__pychache__/

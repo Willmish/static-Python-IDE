@@ -17,15 +17,21 @@ class Controller:
     def getConfiguration(self, config: Config) -> None:
         self._currentSystem = config.getCurrentSystem()
 
+    def setAllConfiguration(self) -> None:
+        View.PLATFORM = self._currentSystem
+        self._view.setPlatformInfo()
+
 
 if __name__ == '__main__':
     config: Config = Config()
     controller: Controller = Controller()
-
+    # tests
     controller._model._tca.unitTests()
-
+    # Initialise config
     config.initialiseConfig('config.ini')
     controller.getConfiguration(config)
+    controller.setAllConfiguration()
+    # Initialise GUI
     controller._view.createGUI()
     controller._view.openFileByName('programs/testFile')
     controller._view.mainLoop()
